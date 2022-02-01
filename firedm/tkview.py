@@ -4647,7 +4647,7 @@ class MainWindow(IView):
 
         # total speed and total eta
         total_speed = sum([item.raw_speed for item in self.d_items.values() if item.status == config.Status.downloading])
-        total_eta = sum([item.raw_eta for item in self.d_items.values()
+        total_eta = max([item.raw_eta for item in self.d_items.values()
                          if item.status == config.Status.downloading and isinstance(item.raw_eta, int)])
         ts = format_bytes(total_speed, tail='/s')
         eta = f'{format_seconds(total_eta, fullunit=True, percision=0, sep=" ")}' if total_eta else ''
