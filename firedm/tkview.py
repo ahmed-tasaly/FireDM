@@ -3541,6 +3541,8 @@ class MainWindow(IView):
         self.pl_menu.listbox.bind('<<ListboxSelect>>', self.video_select_callback)
         self.stream_menu.listbox.bind('<<ListboxSelect>>', self.stream_select_callback)
 
+        self.stream_menu.listbox.bind('<Double-1>', lambda *args: self.download_btn_callback())
+
         # playlist download, sub buttons -------------------------------------------------------------------------------
         pl_sub_frame = tk.Frame(home_tab, background=MAIN_BG)
 
