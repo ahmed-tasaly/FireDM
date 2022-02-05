@@ -201,9 +201,9 @@ class Video(DownloadItem):
         all_streams = [Stream(x) for x in self.vid_info['formats']]
         all_streams.reverse()  # get higher quality first
 
-        # streams has mediatype = (normal, dash, audio)
-        # arrange streams as follows: video mp4, video other formats, audio, extra formats
-        video_streams = [stream for stream in all_streams if stream.mediatype != 'audio']
+        # streams have mediatype = (normal, dash, audio, others)
+        # arrange streams as follows: video mp4, video other formats, audio
+        video_streams = [stream for stream in all_streams if stream.mediatype not in ('audio', 'others')]
         audio_streams = [stream for stream in all_streams if stream.mediatype == 'audio']
         extra_streams = []
 
