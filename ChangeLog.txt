@@ -1,3 +1,16 @@
+2022.2.5:
+- save memory when downloading big files, issue #428.
+- process playlist videos simultaneously (faster metadata fetching).
+- fix filechooser, issue #412.
+- remove storyboard streams (mhtml) from streams menu.
+- unify tooltip and menus text style, issue #410.
+- add 3gp to format choices, issue #417.
+- fix arabic path in batch download window.
+- fix multiple video playlists download, issue #418.
+- fix firedm/FireDM#425 - Set User-Agent in PyCURL, thanks to @TgSeed
+- double click an item in a stream menu to download a format, issue #420.
+- fix total eta calculation.
+
 2021.12.26:
 - critical bug fix for quality selector in playlist window.
 - add filechooser button for ffmpeg path option, issue #409.
