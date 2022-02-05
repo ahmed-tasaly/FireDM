@@ -16,7 +16,7 @@ from .video import merge_video_audio, pre_process_hls, post_process_hls, \
     convert_audio, download_subtitles, write_metadata
 from . import config
 from .config import Status
-from .utils import (log, format_bytes, delete_file, rename_file, run_command)
+from .utils import (log, format_bytes, delete_file, rename_file, run_command, read_in_chunks)
 from .worker import Worker
 from .downloaditem import Segment
 
@@ -157,26 +157,28 @@ def file_manager(d, q, keep_segments=True):
                 if seg.merge:
 
                     # use 'rb+' mode if we use seek, 'ab' doesn't work, 'rb+' will raise error if file doesn't exist
-                    # open/close target file with every segment will avoid operating system buffering,
-                    # which cause almost 90 sec wait on some windows machine to be able to rename the file, after close it
+                    # open/close target file with every segment will avoid operating system buffering, which cause
+                    # almost 90 sec wait on some windows machine to be able to rename the file, after close it
                     # fd.flush() and os.fsync(fd) didn't solve the problem
-                    with open(seg.name, 'rb') as src_file:
-                        if seg.range:
-                            target_file = open(seg.tempfile, 'rb+')
-                            # must seek exact position, segments are not in order for simple append
-                            target_file.seek(seg.range[0])
+                    if seg.range:
+                        target_file = open(seg.tempfile, 'rb+')
+                        # must seek exact position, segments are not in order for simple append
+                        target_file.seek(seg.range[0])
 
-                            # read the exact segment size, sometimes segment has extra data as a side effect from auto segmentation
-                            contents = src_file.read(seg.size)
-                        else:
-                            target_file = open(seg.tempfile, 'ab')
-                            contents = src_file.read()
+                        # read file in chunks to save memory  in case of big segments
+                        # read the exact segment size, sometimes segment has extra data as a side effect of
+                        # auto segmentation
+                        chunks = read_in_chunks(seg.name, bytes_range=(0, seg.range[1] - seg.range[0]), flag='rb')
+                    else:
+                        target_file = open(seg.tempfile, 'ab')
+                        chunks = read_in_chunks(seg.name)
 
-                        # write data
-                        target_file.write(contents)
+                    # write data
+                    for chunk in chunks:
+                        target_file.write(chunk)
 
-                        # close file
-                        target_file.close()
+                    # close file
+                    target_file.close()
 
                 seg.completed = True
                 log('completed segment: ',  seg.basename, log_level=3)
@@ -187,7 +189,7 @@ def file_manager(d, q, keep_segments=True):
             except Exception as e:
                 seg.merge_errors += 1
                 seg.last_merge_error = e
-                log('failed to merge segment', seg.name, ' - ', e)
+                log('failed to merge segment', seg.name, ' - ', seg.range, ' - ', e)
 
                 if config.test_mode:
                     raise e

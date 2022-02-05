@@ -1300,6 +1300,34 @@ def check_write_permission(target_folder, create_dirs=True):
     return success
 
 
+def read_in_chunks(fn, bytes_range=None, chunk_size=10_485_760, flag='rb'):
+    """read bytes range from target file, in chunks to save memory, useful in handling big files
+    Args:
+        fn(str): file name with full path
+        bytes_range(iter): list or tuple of required bytes range,
+                           example [2, 4] for file contains b'0123456789', data will be b'234'
+        chunk_size(int): size of chunks in bytes, default=10_485_760 = 10Mb
+        flag(str): read file flag, e.g. 'r', 'w', 'r+'
+    """
+
+    with open(fn, flag) as fh:
+        if bytes_range:
+            fh.seek(bytes_range[0])
+
+        while True:
+            if bytes_range:
+                pos = fh.tell()
+                if pos > bytes_range[1]:
+                    break
+                elif pos + chunk_size > bytes_range[1]:
+                    chunk_size = bytes_range[1] - pos + 1
+            data = fh.read(chunk_size)
+
+            if not data:
+                break
+            yield data
+
+
 __all__ = [
     'get_headers', 'download', 'format_bytes', 'format_seconds', 'log', 'validate_file_name', 'delete_folder',
     'run_command', 'print_object', 'update_object', 'translate_server_code', 'open_file', 'delete_file', 'rename_file',
@@ -1307,7 +1335,7 @@ __all__ = [
     'auto_rename', 'calc_md5', 'calc_md5_sha256', 'calc_sha256', 'get_range_list',
     'run_thread', 'generate_unique_name', 'open_webpage', 'threaded', 'parse_urls', 'get_media_duration',
     'get_pkg_path', 'get_pkg_version', 'import_file', 'zip_extract', 'create_folder', 'simpledownload', 'ignore_errors',
-    'check_write_permission', 'thread_after'
+    'check_write_permission', 'thread_after', 'read_in_chunks'
 ]
 
 if __name__ == '__main__':
