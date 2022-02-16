@@ -148,26 +148,14 @@ class Worker:
 
     def verify(self):
         """check if segment completed"""
-        # Case-1, unknown segment size, will report done if there is any downloaded data > 0
+        # unknown segment size, will report done if there is any downloaded data > 0
         if self.seg.size == 0 and self.seg.current_size > 0:
             return True
 
-        # Case-2, unknown segment size, and zero downloaded data, will retry a couple of times, ignore it if failed
-        elif self.seg.size == 0 and self.seg.current_size == 0:
-            if self.seg.retries < max_seg_retries:
-                log('seg:', self.seg.basename, 'has zero size, will try again, number of retries:', self.seg.retries,
-                    log_level=2)
-                return False
-            else:
-                log('seg:', self.seg.basename, f'exceeded max. of ({max_seg_retries}) retries,',
-                    'it has zero size, and will be ignored')
-                return True
-
-        # Case-3, segment has a known size
+        # segment has a known size
         elif self.seg.current_size >= self.seg.size:
             return True
 
-        # Case-x, report failed
         else:
             return False
 
@@ -281,9 +269,6 @@ class Worker:
             if not self.seg.url:
                 log('Seg', self.seg.basename, 'segment has no valid url', '- worker', {self.tag}, log_level=2)
                 raise Exception('invalid url')
-
-            # record retries
-            self.seg.retries += 1
 
             # set options
             self.set_options()

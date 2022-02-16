@@ -514,13 +514,21 @@ def thread_manager(d, q):
 
                     ready = worker.reuse(seg=seg, speed_limit=worker_sl, minimum_speed=minimum_speed, timeout=timeout)
                     if ready:
-                        thread = Thread(target=worker.run, daemon=True)
-                        thread.start()
-                        threads_to_workers[thread] = worker
+                        # check max download retries
+                        if seg.retries >= config.max_seg_retries:
+                            log('seg:', seg.basename, f'exceeded max. of ({config.max_seg_retries}) download retries,',
+                                'download failed')
+                            d.status = Status.error
+                        else:
+                            seg.retries += 1
 
-                        # save progress info for future resuming
-                        if os.path.isdir(d.temp_folder):
-                            d.save_progress_info()
+                            thread = Thread(target=worker.run, daemon=True)
+                            thread.start()
+                            threads_to_workers[thread] = worker
+
+                            # save progress info for future resuming
+                            if os.path.isdir(d.temp_folder):
+                                d.save_progress_info()
 
         # check thread completion
         for thread in list(threads_to_workers.keys()):

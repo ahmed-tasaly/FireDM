@@ -183,7 +183,7 @@ refresh_url_retries = 1  # number of retries to refresh expired url when downloa
 speed_limit = 0  # in bytes, zero == no limit
 max_concurrent_downloads = 3
 max_connections = 10
-max_seg_retries = 10  # maximum retries for a segment until reporting downloaded, this is for segment with unknown size
+max_seg_retries = 10  # maximum download retries for a segment until reporting downloaded failed
 
 # ---------------------------------------------------------------------------------------Debugging options--------------
 keep_temp = False  # keep temp files / folders after done downloading for debugging
