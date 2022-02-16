@@ -1512,7 +1512,7 @@ class DItem(tk.Frame):
 
     def __init__(self, parent, uid, status, bg=None, fg=None, on_toggle_callback=None, mode=COMPACT,
                  playbtn_callback=None, delbtn_callback=None, onclick=None, ondoubleclick=None, bind_map=None,
-                 rcm=None, rcm_callback=None):
+                 rcm=None, on_completion_rcm=None, rcm_callback=None):
 
         self.bg = bg or atk.get_widget_attribute(parent, 'background') or MAIN_BG
         self.fg = fg or MAIN_FG
@@ -1548,7 +1548,9 @@ class DItem(tk.Frame):
         self.ondoubleclick = ondoubleclick
         self.bind_map = bind_map
         self.rcm = rcm
+        self.on_completion_rcm = on_completion_rcm
         self.rcm_callback = rcm_callback
+        self.rcm_menu = None
         self.selected = False
         self.progress = ''
 
@@ -1580,9 +1582,9 @@ class DItem(tk.Frame):
         self.bind('<Control-1>', lambda event: self.toggle())
 
         if self.rcm:
-            atk.RightClickMenu(self, self.rcm,
-                               callback=self.rcm_callback,
-                               bg=RCM_BG, fg=RCM_FG, abg=RCM_ABG, afg=RCM_AFG)
+            self.rcm_menu = atk.RightClickMenu(self, self.rcm,
+                                               callback=self.rcm_callback,
+                                               bg=RCM_BG, fg=RCM_FG, abg=RCM_ABG, afg=RCM_AFG)
 
         # bind mousewheel
         atk.scroll_with_mousewheel(self, target=self.parent, apply_to_children=True)
@@ -1922,6 +1924,17 @@ class DItem(tk.Frame):
         elif self.mode == BULK:
             self.thumbnail_label.config(text=text, fg=fg)
 
+    def update_rcm(self):
+        rcm = self.on_completion_rcm if self.status == config.Status.completed else self.rcm
+        menu = self.rcm_menu
+        if rcm and menu:
+            menu.delete(0, 'end')
+            for option in rcm:
+                if option == '---':
+                    menu.add_separator()
+                else:
+                    menu.add_command(label=f' {option}', command=lambda x=option: menu.context_menu_handler(x))
+
     def update(self, name=None, downloaded=None, progress=None, total_size=None, eta=None, speed=None,
                thumbnail=None, status=None, extension=None, sched=None, type=None, subtype_list=None,
                remaining_parts=None, live_connections=None, total_parts=None, shutdown_pc=None,
@@ -2010,6 +2023,7 @@ class DItem(tk.Frame):
             self.dynamic_show_hide()
 
             self.switch_view(config.view_mode)
+            self.update_rcm()
 
         if sched:
             if status == config.Status.scheduled:
@@ -4260,10 +4274,8 @@ class MainWindow(IView):
             16: ('Properties', lambda uid: self.msgbox(self.controller.get_properties(uid=uid))),
         }
 
-        if status == config.Status.completed:
-            rcm = [v[0] for k, v in rcm_map.items() if k in (0, 1, 3, 4, 5, 6, 8, 10, 16)]
-        else:
-            rcm = [v[0] for k, v in rcm_map.items() if k != 8]
+        rcm = [v[0] for k, v in rcm_map.items() if k != 8]
+        on_completion_rcm = [v[0] for k, v in rcm_map.items() if k in (0, 1, 3, 4, 5, 6, 8, 10, 16)]
 
         rcm_map2 = {v[0]: v[1] for v in rcm_map.values()}
 
@@ -4277,7 +4289,9 @@ class MainWindow(IView):
                        onclick=lambda *args, x=uid: self.on_toggle_ditem(x),
                        ondoubleclick=lambda *args, x=uid: self.controller.play_file(uid=x),
                        bind_map=b_map,
-                       rcm=rcm, rcm_callback=rcm_callback)
+                       rcm=rcm,
+                       on_completion_rcm=on_completion_rcm,
+                       rcm_callback=rcm_callback)
 
         self.d_items[uid] = d_item
 
