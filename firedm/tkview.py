@@ -4249,7 +4249,7 @@ class MainWindow(IView):
             5: ('Copy Playlist URL', lambda uid: self.copy(self.controller.get_property('playlist_url', uid=uid))),
             6: ('---', None),
             7: ('Resume', lambda uid: self.resume_selected()),
-            8: ('Re-download', lambda uid: self.resume_download(uid)),
+            8: ('Re-download', lambda uid: self.re_download(uid)),
             9: ('Pause', lambda uid: self.stop_selected()),
             10: ('Delete  (Del)', lambda uid: self.delete_selected()),
             11: ('---', None),
@@ -4493,6 +4493,22 @@ class MainWindow(IView):
 
     def stop_download(self, uid):
         self.controller.stop_download(uid)
+
+    def re_download(self, uid):
+        """re-download a completed item
+
+        Args:
+            uid (str): download item's unique identifier
+        """
+        fp = self.controller.get_property('target_file', uid=uid)
+        if os.path.isfile(fp):
+            res = self.popup('File already exist on disk', buttons=('Overwrite', 'Cancel'))
+            if res != 'Overwrite':
+                return
+            else:
+                delete_file(fp)
+
+        self.download(uid, silent=True)
 
     def resume_download(self, uid):
         """start / resume download for a download item
