@@ -4241,33 +4241,34 @@ class MainWindow(IView):
 
         # right click menu
         rcm_map = {
-            'Open File  (Enter)': lambda uid: self.controller.play_file(uid=uid),
-            'Open File Location': lambda uid: self.controller.open_folder(uid=uid),
-            'Watch While Downloading': lambda uid: self.controller.play_file(uid=uid),
-            'Copy Webpage URL': lambda uid: self.copy(self.controller.get_property('url', uid=uid)),
-            'Copy Direct URL': lambda uid: self.copy(self.controller.get_property('eff_url', uid=uid)),
-            'Copy Playlist URL': lambda uid: self.copy(self.controller.get_property('playlist_url', uid=uid)),
-            'Resume': lambda uid: self.resume_selected(),
-            'Pause': lambda uid: self.stop_selected(),
-            'Delete  (Del)': lambda uid: self.delete_selected(),
-            'Schedule / Unschedule': lambda uid: self.schedule_selected(),
-            'Toggle Shutdown Pc When Finish': lambda uid: self.controller.toggle_shutdown(uid),
-            'On Item Completion Command': lambda uid: self.set_on_completion_command(uid),
-            'Properties': lambda uid: self.msgbox(self.controller.get_properties(uid=uid)),
+            0: ('Open File  (Enter)', lambda uid: self.controller.play_file(uid=uid)),
+            1: ('Open File Location', lambda uid: self.controller.open_folder(uid=uid)),
+            2: ('Watch While Downloading', lambda uid: self.controller.play_file(uid=uid)),
+            3: ('Copy Webpage URL', lambda uid: self.copy(self.controller.get_property('url', uid=uid))),
+            4: ('Copy Direct URL', lambda uid: self.copy(self.controller.get_property('eff_url', uid=uid))),
+            5: ('Copy Playlist URL', lambda uid: self.copy(self.controller.get_property('playlist_url', uid=uid))),
+            6: ('---', None),
+            7: ('Resume', lambda uid: self.resume_selected()),
+            8: ('Re-download', lambda uid: self.resume_download(uid)),
+            9: ('Pause', lambda uid: self.stop_selected()),
+            10: ('Delete  (Del)', lambda uid: self.delete_selected()),
+            11: ('---', None),
+            12: ('Schedule / Unschedule', lambda uid: self.schedule_selected()),
+            13: ('Toggle Shutdown Pc When Finish', lambda uid: self.controller.toggle_shutdown(uid)),
+            14: ('On Item Completion Command', lambda uid: self.set_on_completion_command(uid)),
+            15: ('---', None),
+            16: ('Properties', lambda uid: self.msgbox(self.controller.get_properties(uid=uid))),
         }
 
-        rcm = []
-        for i, item in enumerate(rcm_map.keys()):
-            # filter options for completed items
-            if not (status == config.Status.completed and i in (2, 6, 7, 9, 10, 11)):
-                rcm.append(item)
+        if status == config.Status.completed:
+            rcm = [v[0] for k, v in rcm_map.items() if k in (0, 1, 3, 4, 5, 6, 8, 10, 16)]
+        else:
+            rcm = [v[0] for k, v in rcm_map.items() if k != 8]
 
-            # add separators
-            if i in (5, 9, 11) and rcm[-1] != '---':
-                rcm.append('---')
+        rcm_map2 = {v[0]: v[1] for v in rcm_map.values()}
 
         def rcm_callback(key, x=uid):
-            rcm_map[key](uid)
+            rcm_map2[key](x)
 
         bg = atk.calc_contrast_color(MAIN_BG, 10) if len(self.d_items) % 2 != 0 else MAIN_BG
         d_item = DItem(self.d_tab, uid, status, on_toggle_callback=self.update_stat_lbl, mode=mode, bg=bg,
