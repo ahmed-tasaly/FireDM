@@ -517,7 +517,7 @@ def thread_manager(d, q):
                         # check max download retries
                         if seg.retries >= config.max_seg_retries:
                             log('seg:', seg.basename, f'exceeded max. of ({config.max_seg_retries}) download retries,',
-                                'download failed')
+                                'try to decrease num of connections in settings and try again')
                             d.status = Status.error
                         else:
                             seg.retries += 1
