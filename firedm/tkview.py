@@ -1781,7 +1781,7 @@ class DItem(tk.Frame):
         s.configure(bar_style, thickness=1, background=PBAR_FG, troughcolor=PBAR_BG, troughrelief=tk.FLAT,
                     pbarrelief=tk.FLAT)
 
-        self.bar = tk.IntVar(0)
+        self.bar = tk.IntVar(value=0)
         ttk.Progressbar(self.main_frame, orient=tk.HORIZONTAL, style=bar_style, length=40,
                         variable=self.bar).grid(row=0, column=5, padx=5, sticky='w')
 
