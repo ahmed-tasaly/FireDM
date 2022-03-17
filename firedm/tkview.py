@@ -1156,7 +1156,9 @@ class Browse(tk.Frame):
 
         # colors
         folder_entry.bind('<FocusIn>', lambda event: folder_entry.config(bg='white', fg='black'), add='+')
+        folder_entry.bind('<FocusIn>', lambda event: folder_entry.select_range(0, tk.END), add='+')
         folder_entry.bind('<FocusOut>', lambda event: folder_entry.config(bg=bg, fg=fg), add='+')
+        folder_entry.bind('<FocusOut>', lambda event: folder_entry.selection_clear(), add='+')
 
         folder_entry.bind('<FocusOut>', self.update_recent_folders, add='+')
         folder_entry.bind('<1>', self.update_recent_folders, add='+')
