@@ -205,8 +205,9 @@ def file_manager(d, q, keep_segments=True):
 
                 success = post_process_hls(d)
                 if not success:
-                    d.status = Status.error
-                    log('file_manager()>  post_process_hls() failed, file: \n', d.name, showpopup=True)
+                    if d.status == Status.processing:
+                        d.status = Status.error
+                        log('file_manager()>  post_process_hls() failed, file: \n', d.name, showpopup=True)
                     break
 
             # handle dash video

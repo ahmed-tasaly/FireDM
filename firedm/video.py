@@ -14,6 +14,8 @@ from urllib.parse import urljoin
 import importlib
 import io
 import base64
+import shlex
+import subprocess
 
 from . import config
 from .downloaditem import DownloadItem, Segment
@@ -617,27 +619,56 @@ class Stream:
         return self._mediatype
 
 
+def run_ffmpeg(cmd, d):
+    """run ffmpeg in a subprocess"""
+    if d.status == config.Status.cancelled:
+        return 1, 'exit by user'
+
+    cmd = shlex.split(cmd)
+
+    # startupinfo to hide terminal window on Windows
+    if config.operating_system == 'Windows':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags = subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+    else:
+        startupinfo = None
+
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               encoding='utf-8', errors='replace', shell=False, startupinfo=startupinfo)
+    d.ffmpeg_process = process
+
+    output = ''
+    for line in process.stdout:
+        line = line.strip()
+        output += line
+        log(line)
+        if d.status == config.Status.cancelled:
+            process.communicate(input=b'q')
+            return 1, 'exit by user'
+
+    # wait for subprocess to finish, process.wait() is not recommended
+    process.communicate()
+
+    # get return code
+    process.poll()
+    error = process.returncode  # non zero value indicate an error
+
+    return error, 'done'
+
+
 def merge_video_audio(video, audio, output, d):
     """merge video file and audio file into output file, d is a reference for current DownloadItem object"""
     log('merging video and audio')
 
-    # ffmpeg file full location
-    ffmpeg = config.ffmpeg_actual_path
+    cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -i "{video}" -i "{audio}"'
+    fastcmd = cmd + f' -c copy "{output}"'  # fast process, copy audio, format must match [mp4, m4a] and [webm, webm]
+    slowcmd = cmd + f' "{output}"'  # slow, mix different formats
 
-    # very fast audio just copied, format must match [mp4, m4a] and [webm, webm]
-    cmd1 = f'"{ffmpeg}" -loglevel error -stats -y -i "{video}" -i "{audio}" -c copy "{output}"'
+    error, output = run_ffmpeg(fastcmd, d)
 
-    # slow, mix different formats
-    cmd2 = f'"{ffmpeg}" -loglevel error -stats -y -i "{video}" -i "{audio}" "{output}"'
-
-    verbose = True if config.log_level >= 1 else False
-
-    # run command with shell=False if failed will use shell=True option
-    error, output = run_command(cmd1, verbose=verbose, hide_window=True, d=d)
-
-    # retry on error with cmd2
     if error:
-        error, output = run_command(cmd2, verbose=verbose, hide_window=True, d=d)
+        error, output = run_ffmpeg(slowcmd, d)
 
     return error, output
 
@@ -943,34 +974,28 @@ def post_process_hls(d):
     local_video_m3u8_file = os.path.join(d.temp_folder, 'local_video.m3u8')
     local_audio_m3u8_file = os.path.join(d.temp_folder, 'local_audio.m3u8')
 
-    cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
-          f'-allowed_extensions ALL -i "{local_video_m3u8_file}" -c copy "file:{d.temp_file}"'
-    error, output = run_command(cmd, d=d)
+    def process_file(infp, outfp):
+        cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y' \
+              f' -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
+              f'-allowed_extensions ALL ' \
+              f'-i "{infp}"'
+        fastcmd = cmd + f' -c copy "file:{outfp}"'
+        slowcmd = cmd + f' "file:{outfp}"'
 
-    if error:
-        # retry without "-c copy" parameter, takes longer time
-        cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
-              f'-allowed_extensions ALL -i "{local_video_m3u8_file}" "file:{d.temp_file}"'
-        error, output = run_command(cmd, d=d)
-
-        if error:
-            log('post_process_hls()> ffmpeg failed:', output)
-            return False
-
-    if 'dash' in d.subtype_list:
-        cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
-              f'-allowed_extensions ALL -i "{local_audio_m3u8_file}" -c copy "file:{d.audio_file}"'
-        error, output = run_command(cmd, d=d)
+        error, output = run_ffmpeg(fastcmd, d)
 
         if error:
             # retry without "-c copy" parameter, takes longer time
-            cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
-                  f'-allowed_extensions ALL -i "{local_audio_m3u8_file}" "file:{d.audio_file}"'
-            error, output = run_command(cmd, d=d)
+            error, output = run_ffmpeg(slowcmd, d)
 
             if error:
                 log('post_process_hls()> ffmpeg failed:', output)
                 return False
+
+    process_file(local_video_m3u8_file, d.temp_file)
+
+    if 'dash' in d.subtype_list:
+        process_file(local_audio_m3u8_file, d.audio_file)
 
     log('post_process_hls()> done processing', d.name)
 
