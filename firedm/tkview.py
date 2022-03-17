@@ -1159,6 +1159,7 @@ class Browse(tk.Frame):
         folder_entry.bind('<FocusIn>', lambda event: folder_entry.select_range(0, tk.END), add='+')
         folder_entry.bind('<FocusOut>', lambda event: folder_entry.config(bg=bg, fg=fg), add='+')
         folder_entry.bind('<FocusOut>', lambda event: folder_entry.selection_clear(), add='+')
+        folder_entry.bind('<Return>', lambda event: parent.focus(), add='+')
 
         folder_entry.bind('<FocusOut>', self.update_recent_folders, add='+')
         folder_entry.bind('<1>', self.update_recent_folders, add='+')
@@ -1249,6 +1250,7 @@ class FileProperties(ttk.Frame):
     """
     def __init__(self, parent=None):
         ttk.Frame.__init__(self, parent)
+        self.parent = parent
         self.columnconfigure(1, weight=1)
         self.bg = MAIN_BG
         self.fg = MAIN_FG
@@ -1295,11 +1297,11 @@ class FileProperties(ttk.Frame):
     def create_widgets(self):
 
         def label(text='', textvariable=None, r=1, c=0, rs=1, cs=1, sticky='we'):
-            return tk.Label(self, text=text, textvariable=textvariable, bg=self.bg, fg=self.fg, anchor='w'). \
+            tk.Label(self, text=text, textvariable=textvariable, bg=self.bg, fg=self.fg, anchor='w'). \
                 grid(row=r, column=c, rowspan=rs, columnspan=cs, sticky=sticky)
 
         def separator(r):
-            return ttk.Separator(self, orient='horizontal').grid(sticky='ew', pady=0, row=r, column=0, columnspan=3)
+            ttk.Separator(self, orient='horizontal').grid(sticky='ew', pady=0, row=r, column=0, columnspan=3)
 
         # order of properties
         fields = ('name', 'extension', 'folder', 'size', 'misc')
@@ -1326,6 +1328,7 @@ class FileProperties(ttk.Frame):
 
         # hide entry widget and show label widget
         self.title_entry.bind('<FocusOut>', lambda event: self.done_name_edit())
+        self.title_entry.bind('<Return>', lambda event: self.done_name_edit(), add='+')
 
         # extension ----------------------------------------------------------------------------------------------------
         label('Ext:', r=row['extension'], c=0)
@@ -1335,6 +1338,7 @@ class FileProperties(ttk.Frame):
         self.ext_entry.grid(row=row['extension'], column=1, columnspan=2, sticky='ew')
         self.ext_entry.bind('<FocusIn>', lambda event: self.ext_entry.config(bg='white', fg='black'), add='+')
         self.ext_entry.bind('<FocusOut>', lambda event: self.ext_entry.config(bg=self.bg, fg=self.fg), add='+')
+        self.ext_entry.bind('<Return>', lambda event: self.parent.focus(), add='+')
 
         # size ---------------------------------------------------------------------------------------------------------
         label('Size:', r=row['size'], c=0)
