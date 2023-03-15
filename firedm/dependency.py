@@ -20,18 +20,17 @@ requirements = ['plyer', 'certifi', 'youtube_dl', 'yt_dlp', 'pycurl', 'PIL', 'py
 def is_venv():
     """check if running inside virtual environment
     there is no 100% working method to tell, but we can check for both real_prefix and base_prefix"""
-    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-        return True
-    else:
-        return False
+    return bool(
+        hasattr(sys, 'real_prefix')
+        or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+    )
 
 
 def install_missing_pkgs():
 
-    # list of dependency
-    missing_pkgs = [pkg for pkg in requirements if importlib.util.find_spec(pkg) is None]
-
-    if missing_pkgs:
+    if missing_pkgs := [
+        pkg for pkg in requirements if importlib.util.find_spec(pkg) is None
+    ]:
         print('required pkgs: ', requirements)
         print('missing pkgs: ', missing_pkgs)
 

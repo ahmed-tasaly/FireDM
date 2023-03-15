@@ -196,8 +196,7 @@ class Video(DownloadItem):
             if self.audio_stream:
                 info.update(**self.audio_stream.stream_info)
             info.update(**self.selected_stream.stream_info)
-            title = ydl.prepare_filename(info)
-            return title
+            return ydl.prepare_filename(info)
 
     def _process_streams(self):
         all_streams = [Stream(x) for x in self.vid_info['formats']]
@@ -211,7 +210,7 @@ class Video(DownloadItem):
 
         # filter repeated video streams and prefer normal over dash
         v_names = []
-        for i, stream in enumerate(video_streams[:]):
+        for stream in video_streams[:]:
             if stream.raw_name in v_names and stream.mediatype == 'dash':
                 extra_streams.append(stream)
             v_names.append(stream.raw_name)
@@ -262,9 +261,7 @@ class Video(DownloadItem):
 
         # build menu
         stream_menu = ['Video streams:                     '] + [stream.name for stream in mp4_videos] + [stream.name for stream in other_videos]  \
-                      + ['', 'Audio streams:                 '] + [stream.name for stream in audio_streams]
-                      # + ['', 'Extra streams:                 '] + [stream.name for stream in extra_streams]
-
+                          + ['', 'Audio streams:                 '] + [stream.name for stream in audio_streams]
         # stream menu map will be used to lookup streams from stream menu, can't use dictionary to allow repeated key names
         stream_menu_map = [None] + mp4_videos + other_videos + [None, None] + audio_streams + [None, None] + extra_streams
 
@@ -297,10 +294,15 @@ class Video(DownloadItem):
             set self.selected_stream
         """
 
-        stream = self.get_stream(format_id=format_id, index=index, name=name, raw_name=raw_name, quality=quality,
-                                 extension=extension, mediatype=mediatype)
-
-        if stream:
+        if stream := self.get_stream(
+            format_id=format_id,
+            index=index,
+            name=name,
+            raw_name=raw_name,
+            quality=quality,
+            extension=extension,
+            mediatype=mediatype,
+        ):
             self.selected_stream = stream
 
             if stream.mediatype == 'dash' and dashaudio != 'best':
@@ -332,9 +334,6 @@ class Video(DownloadItem):
                     # stream mediatype = (audio, dash, normal)
                     _mediatype = ('dash', 'normal') if mediatype == config.MediaType.video else (config.MediaType.audio,)
                     streams = [stream for stream in streams if stream.mediatype in _mediatype] or streams
-                else:
-                    pass
-
                 if format_id is not None:
                     streams = [stream for stream in streams if stream.format_id == format_id] or streams
 
@@ -363,9 +362,7 @@ class Video(DownloadItem):
                         quality = q_dict.get(quality, quality)
 
                         if isinstance(quality, str):
-                            # extract numbers from quality text
-                            match = re.match(r'\d+', quality)
-                            if match:
+                            if match := re.match(r'\d+', quality):
                                 quality = match.group()
 
                             quality = int(quality)
@@ -400,9 +397,9 @@ class Video(DownloadItem):
 
     def get_thumbnail(self):
         """get video thumbnail and store it as base64 text in self.thumbnail"""
-        size = (220, 115)
-
         if self.thumbnail_url and not self.thumbnail:
+            size = (220, 115)
+
             try:
                 from PIL import Image
                 log('downloading Thumbnail', log_level=2)
@@ -426,7 +423,7 @@ class Video(DownloadItem):
 
         # do some parameters updates
         stream = self.selected_stream
-        self.extension = '.' + stream.extension
+        self.extension = f'.{stream.extension}'
         self.name = self.title + self.extension
         self.eff_url = stream.url
         self.size = stream.size
@@ -483,11 +480,7 @@ class Video(DownloadItem):
                 ext = 'm4a' if video_stream.extension == 'mp4' else video_stream.extension
                 streams = [stream for stream in streams if stream.extension == ext] or streams
 
-                if quality == 'lowest':
-                    audio_stream = streams[-1]
-                else:
-                    audio_stream = streams[0]
-
+                audio_stream = streams[-1] if quality == 'lowest' else streams[0]
             if audio_stream:
                 self.audio_stream = audio_stream
                 self.audio_quality = self.audio_stream.name
@@ -574,7 +567,7 @@ class Stream:
 
     @property
     def isfragmented(self):
-        return True if self.fragments else False
+        return bool(self.fragments)
 
     @property
     def name(self):
@@ -592,14 +585,13 @@ class Stream:
         try:
             if self.mediatype == 'audio':
                 return int(self.abr)
-            else:
-                # some video streams has its resolution's height different from its quality,
-                # e.g. 1280 width x 676 height is actually 720p quality, will use the nearest standard quality
-                height = int(self.height)
-                if height not in config.standard_video_qualities:
-                    height = sorted(config.standard_video_qualities, key=lambda item: abs(height - item))[0]
+            # some video streams has its resolution's height different from its quality,
+            # e.g. 1280 width x 676 height is actually 720p quality, will use the nearest standard quality
+            height = int(self.height)
+            if height not in config.standard_video_qualities:
+                height = sorted(config.standard_video_qualities, key=lambda item: abs(height - item))[0]
 
-                return height
+            return height
         except:
             return 0
 
@@ -662,8 +654,8 @@ def merge_video_audio(video, audio, output, d):
     log('merging video and audio')
 
     cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -i "{video}" -i "{audio}"'
-    fastcmd = cmd + f' -c copy "{output}"'  # fast process, copy audio, format must match [mp4, m4a] and [webm, webm]
-    slowcmd = cmd + f' "{output}"'  # slow, mix different formats
+    fastcmd = f'{cmd} -c copy "{output}"'
+    slowcmd = f'{cmd} "{output}"'
 
     error, output = run_ffmpeg(fastcmd, d)
 
@@ -788,8 +780,8 @@ def set_interrupt_switch(ydl):
             # print('urlopen started ............................................')
             if config.ytdl_abort:
                 # print('urlopen aborted ............................................')
-                raise Exception(f'video extractor aborted by user')
-                # return None
+                raise Exception('video extractor aborted by user')
+                            # return None
             data = func(self, *args)
             return data
 
@@ -852,20 +844,13 @@ def pre_process_hls(d):
     def not_supported(m3u8_doc):
         # return msg if there is un supported protocol found in the m3u8 file
 
-        if m3u8_doc:
-            # SAMPLE-AES is not supported by ffmpeg, and mostly this will be a protected DRM stream, which shouldn't be downloaded
-            if '#EXT-X-KEY:METHOD=SAMPLE-AES' in m3u8_doc:
-                return 'Error: SAMPLE-AES encryption is not supported'
+        if m3u8_doc and '#EXT-X-KEY:METHOD=SAMPLE-AES' in m3u8_doc:
+            return 'Error: SAMPLE-AES encryption is not supported'
 
         return None
 
     def is_encrypted(m3u8_doc):
-        if m3u8_doc:
-            # check if file encrypted, example: #EXT-X-KEY:METHOD=AES-128,URI="xxx",IV=0x8f6109d91fffb816bcd43fefe018db49
-            if '#EXT-X-KEY' in m3u8_doc:
-                return True
-
-        return False
+        return bool(m3u8_doc and '#EXT-X-KEY' in m3u8_doc)
 
     # maybe the playlist is a direct media playlist and not a master playlist
     if d.manifest_url:
@@ -883,7 +868,7 @@ def pre_process_hls(d):
             f.write(master_m3u8)
 
         # master playlist doesn't have "#EXT-X-TARGETDURATION" tag, only media playlist has it
-        if not "#EXT-X-TARGETDURATION" in master_m3u8:
+        if "#EXT-X-TARGETDURATION" not in master_m3u8:
             refresh_urls(master_m3u8, d.manifest_url)
 
     log('video m3u8:        ', d.eff_url)
@@ -979,8 +964,8 @@ def post_process_hls(d):
               f' -protocol_whitelist "file,http,https,tcp,tls,crypto"  ' \
               f'-allowed_extensions ALL ' \
               f'-i "{infp}"'
-        fastcmd = cmd + f' -c copy "file:{outfp}"'
-        slowcmd = cmd + f' "file:{outfp}"'
+        fastcmd = f'{cmd} -c copy "file:{outfp}"'
+        slowcmd = f'{cmd} "file:{outfp}"'
 
         error, output = run_ffmpeg(fastcmd, d)
 
@@ -1024,10 +1009,7 @@ def convert_audio(d):
     if error:
         error, _ = run_command(cmd2, verbose=True, hide_window=True, d=d)
 
-    if error:
-        return False
-    else:
-        return True
+    return not error
 
 
 # parse m3u8 lines
@@ -1138,7 +1120,7 @@ def download_subtitles(subs, d, ext='srt'):
             # print(sub)
             if ext == sub['ext']:
                 selected_sub = sub
-            elif ext == 'srt' and 'vtt' == sub['ext']:
+            elif ext == 'srt' and sub['ext'] == 'vtt':
                 # if vtt is available will send it as if it is srt and it will be handled in download_sub by ffmpeg
                 sub['ext'] = 'srt'
                 selected_sub = sub
@@ -1228,15 +1210,14 @@ def get_metadata(info):
 
 def write_metadata(input_file, meta_file):
     file, ext = os.path.splitext(input_file)
-    out_file = file + '_2' + ext
+    out_file = f'{file}_2{ext}'
     cmd = f'"{config.ffmpeg_actual_path}" -loglevel error -stats -y -i "{input_file}"  -i "{meta_file}" -map_metadata 1 -codec copy "{out_file}"'
     error, output = run_command(cmd, verbose=True)
     if error:
         return False
-    else:
-        delete_file(input_file)
-        rename_file(out_file, input_file)
-        return True
+    delete_file(input_file)
+    rename_file(out_file, input_file)
+    return True
 
 
 class Key(Segment):
@@ -1315,7 +1296,6 @@ class MediaPlaylist:
                     self.encryption_type = key.method
                     self.current_key = key
 
-            # stream #EXTINF tag must be followed by stream url
             elif line.startswith('#EXTINF'):
                 try:
                     self.seg_duration = float(line.split(':')[1].split(',')[0])
@@ -1326,7 +1306,7 @@ class MediaPlaylist:
                 next_line = lines[i + 1]
                 seg = Segment()
                 seg.media_type = self.stream_type
-                seg.url = next_line if not next_line.startswith('#') else None
+                seg.url = None if next_line.startswith('#') else next_line
                 seg.duration = self.seg_duration
                 seg.key = copy.copy(self.current_key)
 
@@ -1360,30 +1340,23 @@ class MediaPlaylist:
             print(seg)
 
     def create_m3u8_doc(self, segments):
-        lines = []
-
-        # start of playlist
-        lines.append('#EXTM3U')
-
-        # general tags
-        lines.append(f'#EXT-X-VERSION:{self.playlist_version}')
-        lines.append(f'#EXT-X-PLAYLIST-TYPE:{self.playlist_type}')
-        lines.append(f'#EXT-X-TARGETDURATION:{self.max_seg_duration}')
-        lines.append(f'#EXT-X-MEDIA-SEQUENCE:{self.media_sequence}')
+        lines = [
+            '#EXTM3U',
+            f'#EXT-X-VERSION:{self.playlist_version}',
+            f'#EXT-X-PLAYLIST-TYPE:{self.playlist_type}',
+            f'#EXT-X-TARGETDURATION:{self.max_seg_duration}',
+            f'#EXT-X-MEDIA-SEQUENCE:{self.media_sequence}',
+        ]
 
         # segments
         for seg in segments:
             if seg.key:
                 lines.append(seg.key.create_line())
-            lines.append(f'#EXTINF:{seg.duration},')
-            lines.append(seg.url)
-
+            lines.extend((f'#EXTINF:{seg.duration},', seg.url))
         # end of playlist
         lines.append('#EXT-X-ENDLIST')
 
-        m3u8_doc = '\n'.join(lines)
-        # print(m3u8_doc)
-        return m3u8_doc
+        return '\n'.join(lines)
 
     def create_remote_m3u8_doc(self):
         return self.create_m3u8_doc(self.segments)
@@ -1479,10 +1452,7 @@ def process_video(vid):
     typically required when video is a part of unprocessed video playlist"""
     try:
         vid.busy = True  # busy flag will be used to show progress bar or a busy mouse cursor
-        # vid_info = self._process_video_info(vid.vid_info)
-        vid_info = get_media_info(info=vid.vid_info)
-
-        if vid_info:
+        if vid_info := get_media_info(info=vid.vid_info):
             vid.vid_info = vid_info
             vid.refresh()
 

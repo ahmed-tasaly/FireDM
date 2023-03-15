@@ -22,12 +22,7 @@ import re
 
 def get_pkg_path(pkg_name):
     """get package installation path without importing"""
-    spec = find_spec(pkg_name)
-    if spec:
-        pkg_path = os.path.dirname(spec.origin)
-    else:
-        pkg_path = None
-    return pkg_path
+    return os.path.dirname(spec.origin) if (spec := find_spec(pkg_name)) else None
 
 
 def get_pkg_version(pkg):
@@ -84,8 +79,9 @@ def get_pkg_version(pkg):
             pkg_name = os.path.basename(pkg_path)
 
             for folder_name in os.listdir(parent_folder):
-                match = re.match(pkg_name + r'-(.*?)\.dist-info', folder_name, re.IGNORECASE)
-                if match:
+                if match := re.match(
+                    pkg_name + r'-(.*?)\.dist-info', folder_name, re.IGNORECASE
+                ):
                     version = match.groups()[0]
                     break
         except:
@@ -107,8 +103,7 @@ sys.path.insert(0, firedm_src)
 
 pkgs = []
 for d in os.listdir(appimage_update_folder):
-    folders = os.listdir(os.path.join(appimage_update_folder, d))
-    if folders:
+    if folders := os.listdir(os.path.join(appimage_update_folder, d)):
         pkg_full_path = os.path.join(appimage_update_folder, d, folders[0])
         pkgs.append(pkg_full_path)
 
@@ -116,10 +111,7 @@ for d in os.listdir(appimage_update_folder):
 for pkg in pkgs[:]:
     pkg_name = os.path.basename(pkg)
     pkg_version = get_pkg_version(pkg)
-    if pkg_name == 'firedm':
-        src_folder = firedm_src
-    else:
-        src_folder = site_pkgs
+    src_folder = firedm_src if pkg_name == 'firedm' else site_pkgs
     orig_pkg_version = get_pkg_version(os.path.join(src_folder, pkg_name))
 
     # print(pkg, 'orig_pkg_version:', orig_pkg_version, ' - pkg_version:', pkg_version)

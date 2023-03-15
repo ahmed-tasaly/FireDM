@@ -9,6 +9,7 @@
     Module description:
         Main application gui design by tkinter
 """
+
 import datetime
 import json
 import re
@@ -67,7 +68,7 @@ gui_font = None
 all_themes = {}
 
 # add builtin themes
-all_themes.update(builtin_themes)
+all_themes |= builtin_themes
 
 
 # widget's images, it will be updated with theme change
@@ -145,11 +146,7 @@ def url_watchdog(root):
     # capture urls with: http, ftp, and file protocols
     url_reg = re.compile(r"^(https?|ftps?|file)://")
 
-    while True:
-        # monitor global termination flag
-        if config.shutdown:
-            break
-
+    while not config.shutdown:
         # read clipboard contents
         try:
             if config.monitor_clipboard:
@@ -325,10 +322,10 @@ class ThemeEditor(tk.Toplevel):
         new_color = colorchooser.askcolor(color=color, parent=self)
         if new_color:
             new_color = new_color[-1]
-            if new_color:
-                var.set(new_color)
-                fg = atk.calc_font_color(new_color)
-                btn.config(bg=new_color, activebackground=new_color, fg=fg)
+        if new_color:
+            var.set(new_color)
+            fg = atk.calc_font_color(new_color)
+            btn.config(bg=new_color, activebackground=new_color, fg=fg)
 
     def apply(self):
 
@@ -349,7 +346,7 @@ class ThemeEditor(tk.Toplevel):
             theme_name = name
 
         vars_map = {}
-        vars_map.update(self.basic_vars)
+        vars_map |= self.basic_vars
 
         if self.use_all_options:
             vars_map.update(self.advanced_vars)
@@ -372,11 +369,9 @@ class ThemeEditor(tk.Toplevel):
 class Button(tk.Button):
     """normal tk button that follows current theme and act as a transparent if it has an image"""
     def __init__(self, parent, transparent=False, **kwargs):
-        options = {}
         parent_bg = atk.get_widget_attribute(parent, 'background')
-        image = kwargs.get('image', None)
-        options['cursor'] = 'hand2'
-
+        image = kwargs.get('image')
+        options = {'cursor': 'hand2'}
         if image or transparent:
             # make transparent
             options['bg'] = parent_bg
@@ -408,7 +403,7 @@ class Button(tk.Button):
             except Exception as e:
                 print(e)
 
-        options.update(kwargs)
+        options |= kwargs
         atk.configure_widget(self, **options)
 
         # on mouse hover effect
@@ -438,12 +433,7 @@ class Combobox(ttk.Combobox):
                     foreground=atk.calc_font_color(textarea_bg), padding=4, relief=tk.RAISED)
         s.map(custom_style, fieldbackground=[('', textarea_bg)], background=[('', arrow_bg)])
 
-        # default options
-        options = dict(state="readonly", values=values, style=custom_style)
-
-        # update options
-        options.update(kwargs)
-
+        options = dict(state="readonly", values=values, style=custom_style) | kwargs
         # initialize super
         ttk.Combobox.__init__(self, parent, **options)
 
@@ -508,7 +498,7 @@ class AutofitLabel(tk.Label):
             for i in range(0, len(txt), 2):
                 num = len(txt) - i
                 slice = num // 2
-                new_txt = txt[0:slice] + ' ... ' + txt[-slice:]
+                new_txt = f'{txt[:slice]} ... {txt[-slice:]}'
                 if font.measure(new_txt) <= width:
                     self['text'] = new_txt
                     break
@@ -753,7 +743,7 @@ class SideFrame(tk.Frame):
         s = ttk.Style()
 
         # create radio buttons map (name: button_obj)
-        self.buttons_map = dict()
+        self.buttons_map = {}
 
         # create buttons variable "one shared variable for all radio buttons"
         self.var = tk.StringVar()
@@ -770,7 +760,7 @@ class SideFrame(tk.Frame):
         s.map(self.side_btn_style, background=[('', self.bg)])
 
         # tabs mapping, normally it will be frames e.g. {'Home': home_frame, 'Settings': settings_frame, ... }
-        self.tabs_mapping = dict()
+        self.tabs_mapping = {}
 
     def set_default(self, button_name):
         """set default selected button and shown tab
@@ -1065,8 +1055,9 @@ class FileDialog:
     def __init__(self, foldersonly=False):
         self.use = 'TK'  #, 'zenity', or 'kdialog'
         self.foldersonly = foldersonly
-        self.title = 'FireDM - ' 
-        self.title += 'Select a folder' if self.foldersonly else 'Select a file'
+        self.title = 'FireDM - ' + (
+            'Select a folder' if self.foldersonly else 'Select a file'
+        )
         if config.operating_system == 'Linux':
             # looking for zenity
             error, zenity_path = run_command('which zenity', verbose=False)
@@ -1080,7 +1071,7 @@ class FileDialog:
 
     def run(self, initialdir=''):
         initialdir = initialdir or config.download_folder
-        
+
         if self.use == 'zenity':
             cmd = 'zenity --file-selection'
             if self.foldersonly:
@@ -1094,12 +1085,11 @@ class FileDialog:
                 selected_path = path
 
         elif self.use == 'kdialog':
-            cmd = 'kdialog'
-            if self.foldersonly:
-                cmd += ' --getexistingdirectory'
-            else:
-                cmd += ' --getopenfilename'
-
+            cmd = 'kdialog' + (
+                ' --getexistingdirectory'
+                if self.foldersonly
+                else ' --getopenfilename'
+            )
             if isinstance(initialdir, str):
                 cmd += f' "{initialdir}"'
 
@@ -1113,13 +1103,11 @@ class FileDialog:
         return selected_path
 
     def run_default(self, initialdir=''):
-        # use ugly tkinter filechooser
-        if self.foldersonly:
-            selected_path = filedialog.askdirectory(initialdir=initialdir)
-        else:
-            selected_path = filedialog.askopenfilename(initialdir=initialdir)
-        
-        return selected_path
+        return (
+            filedialog.askdirectory(initialdir=initialdir)
+            if self.foldersonly
+            else filedialog.askopenfilename(initialdir=initialdir)
+        )
 
 
 filechooser = FileDialog().run
@@ -1233,8 +1221,7 @@ class Browse(tk.Frame):
 
     def change_folder(self, *args):
         """select folder from system and update folder field"""
-        folder = folderchooser()
-        if folder:
+        if folder := folderchooser():
             self.folder = folder
             self.update_recent_folders()
 
@@ -1281,7 +1268,7 @@ class FileProperties(ttk.Frame):
 
         ext = self.extension.get()
         if not ext.startswith('.'):
-            ext = '.' + ext
+            ext = f'.{ext}'
 
         return title + ext
 
@@ -1360,14 +1347,14 @@ class FileProperties(ttk.Frame):
         'type': 'video', 'subtype_list': ['dash', 'fragmented'], 'resumable': True, 'total_size': 100000}
 
         """
-        title = kwargs.get('title', None)
-        extension = kwargs.get('extension', None)
-        size = kwargs.get('total_size', None)
-        folder = kwargs.get('folder', None)
+        title = kwargs.get('title')
+        extension = kwargs.get('extension')
+        size = kwargs.get('total_size')
+        folder = kwargs.get('folder')
         type_ = kwargs.get('type', '')
         subtype_list = kwargs.get('subtype_list', '')
-        resumable = kwargs.get('resumable', None)
-        duration = kwargs.get('duration', None)
+        resumable = kwargs.get('resumable')
+        duration = kwargs.get('duration')
         duration_string = get_media_duration(duration)
 
         if title:
@@ -1484,8 +1471,7 @@ class Segmentbar(tk.Canvas):
         (range-start, length, total-file-size)"""
         start, end = info
 
-        tag_id = self.bars.get(start, None)
-        if tag_id:
+        if tag_id := self.bars.get(start, None):
             x0, y0, x1, y1 = self.coords(tag_id)
             x1 = end
             self.coords(tag_id, x0, y0, x1, y1)
@@ -1644,10 +1630,14 @@ class DItem(tk.Frame):
                          'info_lbl2', 'delete_button', 'bar', 'bar_fr', 'main_frame'):
                 w = getattr(self, name, None)
                 if w:
-                    change_colors(w, selection_fg, selection_bg,
-                                  children=True if name in ('bar', 'bar_fr') else False,
-                                  recursive=True if name == 'bar' else False,
-                                  execludes=('TProgressbar',) if name == 'bar_fr' else None)
+                    change_colors(
+                        w,
+                        selection_fg,
+                        selection_bg,
+                        children=name in ('bar', 'bar_fr'),
+                        recursive=name == 'bar',
+                        execludes=('TProgressbar',) if name == 'bar_fr' else None,
+                    )
 
         if callable(self.on_toggle_callback):
             self.on_toggle_callback()
@@ -1920,7 +1910,7 @@ class DItem(tk.Frame):
             stext = 'X'
             fg = 'red'
         else:
-            text = self.ext if not self.thumbnail_img else ''
+            text = '' if self.thumbnail_img else self.ext
             stext = ''
             fg = 'black'
 
@@ -2006,10 +1996,9 @@ class DItem(tk.Frame):
         if total_parts:
             self.total_parts = total_parts
 
-        if remaining_parts:
-            if self.total_parts:
-                completed = self.total_parts - remaining_parts
-                self.completed_parts = f'- Done: {completed} of {self.total_parts}'
+        if remaining_parts and self.total_parts:
+            completed = self.total_parts - remaining_parts
+            self.completed_parts = f'- Done: {completed} of {self.total_parts}'
 
         if status:
             self.status = status
@@ -2031,9 +2020,8 @@ class DItem(tk.Frame):
             self.switch_view(config.view_mode)
             self.update_rcm()
 
-        if sched:
-            if status == config.Status.scheduled:
-                self.sched = f'@{sched}'
+        if sched and status == config.Status.scheduled:
+            self.sched = f'@{sched}'
 
         if type:
             self.media_type = type
@@ -2101,11 +2089,21 @@ class Checkbutton(tk.Checkbutton):
         bg = atk.get_widget_attribute(parent, 'background')
         fg = MAIN_FG
 
-        options = dict(bg=bg, fg=fg, anchor='w', relief='flat', activebackground=bg, highlightthickness=0,
-                       activeforeground=fg, selectcolor=bg, onvalue=True, offvalue=False,)
-
-        options.update(kwargs)
-
+        options = (
+            dict(
+                bg=bg,
+                fg=fg,
+                anchor='w',
+                relief='flat',
+                activebackground=bg,
+                highlightthickness=0,
+                activeforeground=fg,
+                selectcolor=bg,
+                onvalue=True,
+                offvalue=False,
+            )
+            | kwargs
+        )
         tk.Checkbutton.__init__(self, parent, **options)
 
 
@@ -2255,12 +2253,7 @@ class CheckEntryOption(tk.Frame):
         # Load previous values -----------------------------------------------------------------------------------------
         text = get_option(entry_key, '')
 
-        if check_key is None:
-            checked = True if text else False
-
-        else:
-            checked = get_option(check_key, False)
-
+        checked = bool(text) if check_key is None else get_option(check_key, False)
         self.chkvar.set(checked)
 
         # load entry value
@@ -2270,11 +2263,7 @@ class CheckEntryOption(tk.Frame):
     def update_sett(self, *args):
         try:
             checked = self.chkvar.get()
-            if checked:
-                text = self.get()
-            else:
-                text = self.entry_disabled_value
-
+            text = self.get() if checked else self.entry_disabled_value
             set_option(**{self.entry_key: text})
 
             if self.check_key:
@@ -2357,7 +2346,7 @@ class MediaPresets(tk.Frame):
         def sub_lang_callback(lang):
             exts = self.subtitles.get(lang, [])
             self.sub_ext['values'] = exts
-            ext_width = max([len(ext) for ext in exts]) or 4
+            ext_width = max(len(ext) for ext in exts) or 4
             self.sub_ext['width'] = ext_width
 
             if exts:
@@ -2371,7 +2360,7 @@ class MediaPresets(tk.Frame):
         if self.subtitles:
             sub_fr.pack(side='right', padx=(10, 0))
             langs = list(self.subtitles.keys())
-            lang_width = max([len(lang) for lang in langs]) or 4
+            lang_width = max(len(lang) for lang in langs) or 4
 
             if langs:
                 lang = langs[0]
@@ -2380,14 +2369,13 @@ class MediaPresets(tk.Frame):
                 sub_lang_callback(lang)
 
     def get_info(self):
-        info_dict = dict(
+        return dict(
             video_ext=self.video_ext.get(),
             video_quality=self.video_quality.get(),
             dash_audio=self.dash_audio.get(),
             audio_ext=self.audio_ext.get(),
-            audio_quality=self.audio_quality.get()
+            audio_quality=self.audio_quality.get(),
         )
-        return info_dict
 
     def save_presets(self):
         config.media_presets = self.get_info()
@@ -2432,11 +2420,7 @@ class MediaPresets(tk.Frame):
         # subtitles
         lang = self.sub_lang.get()
         ext = self.sub_ext.get()
-        if self.sub_var.get() and lang and ext:
-            subtitles = {lang: ext}
-        else:
-            subtitles = None
-        return subtitles
+        return {lang: ext} if self.sub_var.get() and lang and ext else None
 
 
 class SimplePlaylist(tk.Toplevel):
@@ -2454,7 +2438,7 @@ class SimplePlaylist(tk.Toplevel):
         """
 
         self.playlist = playlist
-        self.titles = [x for x in playlist]
+        self.titles = list(playlist)
 
         # Example: {'en': ['srt', 'vtt', ...], 'ar': ['vtt', ...], ..}}
         self.subtitles = subtitles
@@ -2986,18 +2970,22 @@ class DatePicker(tk.Toplevel):
         """
         self.parent = parent
 
-        today = datetime.datetime.today()
+        today = datetime.datetime.now()
         self.min_year = min_year or today.year - 20
         self.max_year = max_year or today.year + 20
 
         self.selected_date = None
 
-        self.fields = {'Year': {'values': list(range(self.min_year, self.max_year + 1)), 'selection': today.year},
-                       'Month': {'values': list(range(1, 13)), 'selection': today.month},
-                       'Day': {'values': list(range(1, 31)), 'selection': today.day},
-                       'Hour': {'values': list(range(0, 60)), 'selection': today.hour},
-                       'Minute': {'values': list(range(0, 60)), 'selection': today.minute},
-                       }
+        self.fields = {
+            'Year': {
+                'values': list(range(self.min_year, self.max_year + 1)),
+                'selection': today.year,
+            },
+            'Month': {'values': list(range(1, 13)), 'selection': today.month},
+            'Day': {'values': list(range(1, 31)), 'selection': today.day},
+            'Hour': {'values': list(range(60)), 'selection': today.hour},
+            'Minute': {'values': list(range(60)), 'selection': today.minute},
+        }
 
         # initialize super
         tk.Toplevel.__init__(self, self.parent)
@@ -3024,9 +3012,7 @@ class DatePicker(tk.Toplevel):
         """year, month -> number of days in that month in that year, modified from source: datetime.py"""
         default = [-1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-        if month == 2 and self.is_leap(year):
-            return 29
-        return default[month]
+        return 29 if month == 2 and self.is_leap(year) else default[month]
 
     def create_widgets(self):
         main_frame = tk.Frame(self, bg=MAIN_BG)
@@ -3090,7 +3076,7 @@ def rcm_marker(rcm, default=None):
     def inner(option, markonly=False):
         last_idx = rcm.index(tk.END)
         compound = 'right'
-        for i in range(0, last_idx + 1):
+        for i in range(last_idx + 1):
             if rcm.entrycget(i, 'label').strip() == option:
                 rcm.entryconfig(i, image=imgs['done_icon'], compound=compound)
             else:

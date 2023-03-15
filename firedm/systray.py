@@ -41,9 +41,7 @@ class SysTray:
     def tray_icon(self):
         """return pillow image"""
         try:
-            img = atk.create_pil_image(b64=APP_ICON, size=48)
-
-            return img
+            return atk.create_pil_image(b64=APP_ICON, size=48)
         except Exception as e:
             log('systray: tray_icon', e)
             if config.test_mode:
@@ -134,7 +132,7 @@ class SysTray:
                 from pystray import Icon, Menu, MenuItem
                 items = []
                 for option, callback in options_map.items():
-                    items.append(MenuItem(option, callback, default=True if option == 'Show' else False))
+                    items.append(MenuItem(option, callback, default=option == 'Show'))
 
                 menu = Menu(*items)
                 self.icon = Icon(config.APP_NAME, self.tray_icon, menu=menu)

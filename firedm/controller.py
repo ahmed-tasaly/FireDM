@@ -61,13 +61,9 @@ def check_ffmpeg():
     and finally: system wide"""
 
     log('check ffmpeg availability?', log_level=2)
-    found = False
     fn = 'ffmpeg.exe' if config.operating_system == 'Windows' else 'ffmpeg'
 
-    # check in predefined path
-    if os.path.isfile(config.ffmpeg_actual_path):
-        found = True
-
+    found = bool(os.path.isfile(config.ffmpeg_actual_path))
     # search in current app directory then default setting folder
     if not found:
         try:
@@ -112,8 +108,12 @@ def check_ffmpeg():
         log(msg, log_level=2)
         return True
     else:
-        log(f'can not find ffmpeg!!, install it, or add executable location to PATH, or copy executable to ',
-            config.global_sett_folder, 'or', config.current_directory)
+        log(
+            'can not find ffmpeg!!, install it, or add executable location to PATH, or copy executable to ',
+            config.global_sett_folder,
+            'or',
+            config.current_directory,
+        )
 
 
 def write_timestamp(d):
@@ -141,9 +141,7 @@ def write_timestamp(d):
             if not timestamp:
                 # get last modified timestamp from server,  eg.    'last-modified': 'Fri, 22 Feb 2019 09:30:09 GMT'
                 headers = get_headers(d.eff_url, http_headers=d.http_headers)
-                last_modified = headers.get('last-modified')
-
-                if last_modified:
+                if last_modified := headers.get('last-modified'):
                     # parse timestamp
                     dt = parsedate_to_datetime(last_modified)
                     timestamp = dt.timestamp()  # will correct for local time
@@ -190,7 +188,7 @@ def download_thumbnail(d):
     try:
         # download thumbnail
         if d.status == Status.completed and d.thumbnail_url:
-            fp = os.path.splitext(d.target_file)[0] + '.png'
+            fp = f'{os.path.splitext(d.target_file)[0]}.png'
             download(d.thumbnail_url, fp=fp, decode=False)
 
     except Exception as e:
@@ -389,31 +387,28 @@ class Controller:
             if content_type.lower() != 'text/html':
                 d.eff_url = eff_url
 
-        else:
-            # process video
-            playlist = create_video_playlist(url)
-            if playlist:
-                refreshed_d = playlist[0]
+        elif playlist := create_video_playlist(url):
+            refreshed_d = playlist[0]
 
-                # select video stream
-                refreshed_d.select_stream(format_id=d.format_id, extension=d.extension, mediatype=d.type)
-                log('selected stream:    ', d.selected_quality)
-                log('New selected stream:', refreshed_d.selected_quality)
+            # select video stream
+            refreshed_d.select_stream(format_id=d.format_id, extension=d.extension, mediatype=d.type)
+            log('selected stream:    ', d.selected_quality)
+            log('New selected stream:', refreshed_d.selected_quality)
 
-                # select audio stream
-                if d.type == MediaType.video and 'dash' in d.subtype_list:
-                    try:
-                        match = [s for s in refreshed_d.audio_streams if s.name == d.audio_quality]
-                        selected_audio_stream = match[0] if match else None
-                        refreshed_d.select_audio(selected_audio_stream)
-                        log('selected audio:    ', d.audio_quality)
-                        log('New selected audio:', refreshed_d.audio_quality)
-                    except:
-                        pass
+            # select audio stream
+            if d.type == MediaType.video and 'dash' in d.subtype_list:
+                try:
+                    match = [s for s in refreshed_d.audio_streams if s.name == d.audio_quality]
+                    selected_audio_stream = match[0] if match else None
+                    refreshed_d.select_audio(selected_audio_stream)
+                    log('selected audio:    ', d.audio_quality)
+                    log('New selected audio:', refreshed_d.audio_quality)
+                except:
+                    pass
 
-                # update old object
-                d.__dict__.update(refreshed_d.__dict__)
-                d.register_callback(self.observer)
+            # update old object
+            d.__dict__.update(refreshed_d.__dict__)
+            d.register_callback(self.observer)
 
         # restore original name and folder
         d.name = name
@@ -462,7 +457,12 @@ class Controller:
 
             if is_video_playlist:
                 log('controller> playlist ready')
-                self._update_playlist_menu([str(i + 1) + '- ' + vid.title for i, vid in enumerate(self.playlist)])
+                self._update_playlist_menu(
+                    [
+                        f'{str(i + 1)}- {vid.title}'
+                        for i, vid in enumerate(self.playlist)
+                    ]
+                )
             else:
                 self._update_playlist_menu([])
 
@@ -494,10 +494,9 @@ class Controller:
         report_interval = 0.5  # sec
 
         while True:
-            for i in range(self.observer_q.qsize()):
+            for _ in range(self.observer_q.qsize()):
                 item = self.observer_q.get()
-                uid = item.get('uid')
-                if uid:
+                if uid := item.get('uid'):
                     buffer.setdefault(uid, item).update(**item)
 
             for v in buffer.values():
@@ -518,16 +517,14 @@ class Controller:
             d = self.d_map.get(uid, None)
 
             if d is not None:
-                # readonly properties will not be reported by ObservableDownloadItem
-                downloaded = kwargs.get('downloaded', None)
-                if downloaded:
+                if downloaded := kwargs.get('downloaded'):
                     extra = {k: getattr(d, k, None) for k in ['progress', 'speed', 'eta']}
                     # print('extra:', extra)
 
                     kwargs.update(**extra)
 
             self.view.update_view(**kwargs)
-            # print('controller._update_view:', kwargs)
+                # print('controller._update_view:', kwargs)
         except Exception as e:
             log('controller._update_view()> error, ', e)
             if config.test_mode:
@@ -650,8 +647,7 @@ class Controller:
     # region video playlist
     def get_playlist_titles(self):
         if self.last_active_playlist:
-            titles = [d.simpletitle for d in self.last_active_playlist]
-            return titles
+            return [d.simpletitle for d in self.last_active_playlist]
         else:
             return None
 
@@ -678,14 +674,14 @@ class Controller:
         download_options = download_info.setdefault('download_options', {})
         subtitles = download_info.get('subtitles', {})
 
-        for i, d in enumerate([playlist[idx] for idx in selected_items]):
+        for i, d in enumerate(playlist[idx] for idx in selected_items):
             if not d.all_streams:
                 thread_after(i/2, process_video, d)
 
         for idx, title in selected_items.items():
             d = playlist[idx]
 
-            for i in range(10):
+            for _ in range(10):
                 if not d.busy:
                     break
                 time.sleep(1)
@@ -705,11 +701,9 @@ class Controller:
                 title = num + d.title
 
             # update name
-            d.name = title + '.' + stream_options['extension']
+            d.name = f'{title}.' + stream_options['extension']
 
-            # update download folder
-            folder = download_options.get('folder', None)
-            if folder:
+            if folder := download_options.get('folder', None):
                 d.folder = folder
 
             self.download(d, silent=True, **download_options, **kwargs)
@@ -736,8 +730,9 @@ class Controller:
         """handle scheduled downloads, should run in a dedicated thread"""
 
         while True:
-            sched_downloads = [d for d in self.d_map.values() if d.status == Status.scheduled]
-            if sched_downloads:
+            if sched_downloads := [
+                d for d in self.d_map.values() if d.status == Status.scheduled
+            ]:
                 current_datetime = datetime.now()
                 for d in sched_downloads:
                     if d.sched and datetime.fromisoformat(d.sched) <= current_datetime:
@@ -758,41 +753,40 @@ class Controller:
 
         showpopup = not silent
 
-        if not (d or d.url):
+        if not d and not d.url:
             log('Nothing to download', start='', showpopup=showpopup)
             return False
         elif not d.type or d.type == 'text/html':
-            if not silent:
-                response = self.get_user_response(popup_id=1)
-                if response == 'Ok':
-                    d.accept_html = True
-            else:
+            if silent:
                 return False
 
+            response = self.get_user_response(popup_id=1)
+            if response == 'Ok':
+                d.accept_html = True
         if d.status in Status.active_states:
             log('download is already in progress for this item')
             return False
 
         # check unsupported protocols
         unsupported = ['f4m', 'ism']
-        match = [item for item in unsupported if item in d.subtype_list]
-        if match:
+        if match := [item for item in unsupported if item in d.subtype_list]:
             log(f'unsupported protocol: \n"{match[0]}" stream type is not supported yet', start='', showpopup=showpopup)
             return False
 
         # check for ffmpeg availability
-        if d.type in (MediaType.video, MediaType.audio, MediaType.key):
-            if not check_ffmpeg():
+        if (
+            d.type in (MediaType.video, MediaType.audio, MediaType.key)
+            and not check_ffmpeg()
+        ):
+            if not silent and config.operating_system == 'Windows':
+                res = self.get_user_response(popup_id=2)
+                if res == 'Download':
+                    # download ffmpeg from github
+                    self._download_ffmpeg()
+            else:
+                log('FFMPEG is missing', start='', showpopup=showpopup)
 
-                if not silent and config.operating_system == 'Windows':
-                    res = self.get_user_response(popup_id=2)
-                    if res == 'Download':
-                        # download ffmpeg from github
-                        self._download_ffmpeg()
-                else:
-                    log('FFMPEG is missing', start='', showpopup=showpopup)
-
-                return False
+            return False
 
         # in case of missing download folder value will fallback to current download folder
         folder = d.folder or config.download_folder
@@ -814,7 +808,7 @@ class Controller:
             if config.test_mode:
                 raise
             return False
-        except (PermissionError, OSError):
+        except OSError:
             log(f"you don't have enough permission for destination folder {folder}", start='', showpopup=showpopup)
             if config.test_mode:
                 raise
@@ -906,10 +900,9 @@ class Controller:
 
         update_object(d, kwargs)
 
-        pre_checks = self._pre_download_checks(d, silent=silent, force_rename=kwargs.get('force_rename', False))
-        # print('precheck:', pre_checks)
-
-        if pre_checks:
+        if pre_checks := self._pre_download_checks(
+            d, silent=silent, force_rename=kwargs.get('force_rename', False)
+        ):
             # update view
             self.report_d(d, command='new')
 
@@ -987,28 +980,29 @@ class Controller:
         """
 
         # on completion actions
-        if d.status == Status.completed:
-            if config.download_thumbnail:
-                download_thumbnail(d)
+        if d.status != Status.completed:
+            return
+        if config.download_thumbnail:
+            download_thumbnail(d)
 
-            if config.checksum:
-                log()
-                log(f'Calculating MD5 and SHA256 for {d.target_file} .....')
-                md5, sha256 = calc_md5_sha256(fp=d.target_file)
-                log(f'MD5: {md5} - for {d.name}')
-                log(f'SHA256: {sha256} - for {d.name}')
+        if config.checksum:
+            log()
+            log(f'Calculating MD5 and SHA256 for {d.target_file} .....')
+            md5, sha256 = calc_md5_sha256(fp=d.target_file)
+            log(f'MD5: {md5} - for {d.name}')
+            log(f'SHA256: {sha256} - for {d.name}')
 
-            if config.use_server_timestamp:
-                write_timestamp(d)
+        if config.use_server_timestamp:
+            write_timestamp(d)
 
-            if d.on_completion_command:
-                err, output = run_command(d.on_completion_command)
-                if err:
-                    log(f'error executing command: {d.on_completion_command} \n{output}')
+        if d.on_completion_command:
+            err, output = run_command(d.on_completion_command)
+            if err:
+                log(f'error executing command: {d.on_completion_command} \n{output}')
 
-            if d.shutdown_pc:
-                d.shutdown_pc = False
-                self.shutdown_pc()
+        if d.shutdown_pc:
+            d.shutdown_pc = False
+            self.shutdown_pc()
 
     def _download_ffmpeg(self, destination=config.sett_folder):
         """download ffmpeg.exe for windows os
@@ -1058,7 +1052,7 @@ class Controller:
             process_video(d)
 
         # set video quality
-        quality = kwargs.get('quality', None)
+        quality = kwargs.get('quality')
 
         if quality and d.type == MediaType.video:
             prefer_mp4 = kwargs.get('prefer_mp4', False)
@@ -1068,9 +1062,7 @@ class Controller:
         if stream_options and d.type == MediaType.video:
             d.select_stream(**stream_options)
 
-        # update download folder
-        folder = download_options.get('folder', None)
-        if folder:
+        if folder := download_options.get('folder', None):
             d.folder = folder
 
         # download item
@@ -1231,27 +1223,28 @@ class Controller:
     @threaded
     def auto_check_for_update(self):
         """auto check for firedm update"""
-        if config.check_for_update and not config.disable_update_feature:
-            today = date.today()
+        if not config.check_for_update or config.disable_update_feature:
+            return
+        today = date.today()
 
-            if update.parse_version(config.APP_VERSION) > update.parse_version(config.updater_version):
+        if update.parse_version(config.APP_VERSION) > update.parse_version(config.updater_version):
+            config.last_update_check = (today.year, today.month, today.day)
+            config.updater_version = config.APP_VERSION
+            # log('Running newer FireDM version, reset last_update_check')
+
+        else:
+            try:
+                last_check = date(*config.last_update_check)
+            except:
+                last_check = today
                 config.last_update_check = (today.year, today.month, today.day)
-                config.updater_version = config.APP_VERSION
-                # log('Running newer FireDM version, reset last_update_check')
 
-            else:
-                try:
-                    last_check = date(*config.last_update_check)
-                except:
-                    last_check = today
-                    config.last_update_check = (today.year, today.month, today.day)
-
-                delta = today - last_check
-                if delta.days >= config.update_frequency:
-                    res = self.get_user_response(f'Check for FireDM update?\nLast check was {delta.days} days ago',
-                                                 options=['Ok', 'Cancel'])
-                    if res == 'Ok':
-                        self.check_for_update()
+            delta = today - last_check
+            if delta.days >= config.update_frequency:
+                res = self.get_user_response(f'Check for FireDM update?\nLast check was {delta.days} days ago',
+                                             options=['Ok', 'Cancel'])
+                if res == 'Ok':
+                    self.check_for_update()
 
     def rollback_pkg_update(self, pkg):
         try:
@@ -1288,10 +1281,10 @@ class Controller:
 
         all_subtitles = d.prepare_subtitles()
 
-        # required format {'en': ['srt', 'vtt', ...], 'ar': ['vtt', ...], ..}
-        subs = {k: [item.get('ext', 'txt') for item in v] for k, v in all_subtitles.items()}
-
-        if subs:
+        if subs := {
+            k: [item.get('ext', 'txt') for item in v]
+            for k, v in all_subtitles.items()
+        }:
             return subs
 
     def download_subtitles(self, subs, uid=None, video_idx=None, d=None):
@@ -1314,12 +1307,9 @@ class Controller:
         for lang, ext in subs.items():
             items_list = all_subtitles.get(lang, [])
 
-            match = [item for item in items_list if item.get('ext') == ext]
-            if match:
+            if match := [item for item in items_list if item.get('ext') == ext]:
                 item = match[-1]
-                url = item.get('url')
-
-                if url:
+                if url := item.get('url'):
                     run_thread(self._download_subtitle, lang, url, ext, d)
             else:
                 log('subtitle:', lang, 'Not available for:', d.name)
@@ -1368,31 +1358,22 @@ class Controller:
         open_file(fp, silent=True)
 
     def open_file(self, uid=None, video_idx=None):
-        # get download item
-        d = self.get_d(uid, video_idx)
-
-        if not d:
+        if d := self.get_d(uid, video_idx):
+            open_file(d.target_file)
+        else:
             return
-
-        open_file(d.target_file)
 
     def open_temp_file(self, uid=None, video_idx=None):
-        # get download item
-        d = self.get_d(uid, video_idx)
-
-        if not d:
+        if d := self.get_d(uid, video_idx):
+            open_file(d.temp_file)
+        else:
             return
-
-        open_file(d.temp_file)
 
     def open_folder(self, uid=None, video_idx=None):
-        # get download item
-        d = self.get_d(uid, video_idx)
-
-        if not d:
+        if d := self.get_d(uid, video_idx):
+            open_folder(d.folder)
+        else:
             return
-
-        open_folder(d.folder)
 
     @threaded
     def delete(self, uid, deltarget=False):
@@ -1417,12 +1398,10 @@ class Controller:
 
     # region get info
     def get_property(self, property_name, uid=None, video_idx=None):
-        d = self.get_d(uid, video_idx)
-
-        if not d:
+        if d := self.get_d(uid, video_idx):
+            return getattr(d, property_name, None)
+        else:
             return
-
-        return getattr(d, property_name, None)
 
     @threaded
     def get_d_list(self):
@@ -1440,10 +1419,7 @@ class Controller:
         # get download item
         d = self.get_d(uid, video_idx)
 
-        if not d:
-            return None
-
-        return d.update_segments_progress(activeonly=False)
+        return d.update_segments_progress(activeonly=False) if d else None
 
     def get_properties(self, uid=None, video_idx=None):
         # get download item
@@ -1490,8 +1466,7 @@ class Controller:
         if not d or d.type != 'video' or not d.audio_streams or 'dash' not in d.subtype_list:
             return None
 
-        audio_menu = [stream.name for stream in d.audio_streams]
-        return audio_menu
+        return [stream.name for stream in d.audio_streams]
 
     def get_selected_audio(self, uid=None, video_idx=None):
         """send selected audio
@@ -1505,10 +1480,7 @@ class Controller:
         # get download item
         d = self.get_d(uid, video_idx)
 
-        if not d or not d.audio_streams:
-            return None
-
-        return d.audio_stream.name
+        return None if not d or not d.audio_streams else d.audio_stream.name
 
     def get_d(self, uid=None, video_idx=None):
         """get download item reference
@@ -1578,10 +1550,7 @@ class Controller:
         # make sure user started any item downloading, after setting "on-completion actions"
         trigger = False
 
-        while True:
-            if config.shutdown:
-                break
-
+        while not config.shutdown:
             # check for "on-completion actions"
             if config.on_completion_command or config.shutdown_pc or config.on_completion_exit:
                 # check for any active download, then set the trigger
@@ -1691,9 +1660,7 @@ class Controller:
             if not popup['show']:
                 return popup['default']
 
-        res = self.view.get_user_response(msg, options, popup_id=popup_id)
-
-        return res
+        return self.view.get_user_response(msg, options, popup_id=popup_id)
 
     def run(self):
         """run current "view" main loop"""
@@ -1733,7 +1700,7 @@ class Controller:
             update_object(d, kwargs)
 
             # set video quality
-            quality = kwargs.get('quality', None)
+            quality = kwargs.get('quality')
 
             if quality and d.type == MediaType.video:
                 prefer_mp4 = kwargs.get('prefer_mp4', False)
@@ -1799,7 +1766,7 @@ class Controller:
                 log('ffmpeg missing, abort')
                 return
 
-            msg = f'Available streams:'
+            msg = 'Available streams:'
             options = [f'{s.mediatype} {"video" if s.mediatype != "audio" else "only"}: {str(s)}' for s in
                        d.all_streams]
             selection = self.get_user_response(msg, options)
@@ -1807,14 +1774,14 @@ class Controller:
             d.selected_stream = d.all_streams[idx]
 
             if 'dash' in d.subtype_list:
-                msg = f'Audio Formats:'
+                msg = 'Audio Formats:'
                 options = d.audio_streams
                 audio = self.get_user_response(msg, options)
                 d.select_audio(audio)
 
         # check if file exist
         if os.path.isfile(d.target_file):
-            msg = f'file with the same name already exist:'
+            msg = 'file with the same name already exist:'
             options = ['Overwrite', 'Rename', 'Cancel']
             r = self.get_user_response(msg, options)
             if r == options[0]:
@@ -1831,8 +1798,8 @@ class Controller:
             msg += f'selected video stream: {d.selected_stream}\n'
             msg += f'selected audio stream: {d.audio_stream}\n'
 
-        msg += 'folder:' + d.folder + '\n'
-        msg += f'Start Downloading?'
+        msg += f'folder:{d.folder}' + '\n'
+        msg += 'Start Downloading?'
         options = ['Ok', 'Cancel']
         r = self.get_user_response(msg, options)
         if r == options[1]:

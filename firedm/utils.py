@@ -321,15 +321,12 @@ def simpledownload(url, fp=None, return_data=True, overwrite=False):
 
     while True:
         start = time.time()
-        chunk = response.read(chunk_size)
-        if chunk:
+        if chunk := response.read(chunk_size):
             data += chunk
 
             done += len(chunk)
 
-            elapsed_time = time.time() - start
-
-            if elapsed_time:
+            if elapsed_time := time.time() - start:
                 speed = format_bytes(round(len(chunk) / elapsed_time, 1), tail='/s')
             else:
                 speed = ''
@@ -349,10 +346,7 @@ def simpledownload(url, fp=None, return_data=True, overwrite=False):
         with open(fp, 'wb') as f:
             f.write(data)
 
-    if return_data:
-        return data
-    else:
-        return True
+    return data if return_data else True
 
 
 my_print=print# replaced on cli mode
@@ -415,7 +409,7 @@ def validate_file_name(fname):
         # max. allowed filename length 255 on windows,
         # https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file?redirectedfrom=MSDN
         if len(clean_name) > 255:
-            clean_name = clean_name[0:245] + clean_name[-10:]  # add last 10 characters "including file extension"
+            clean_name = clean_name[:245] + clean_name[-10:]
     except:
         clean_name = fname
 
@@ -783,10 +777,10 @@ def format_seconds(t, tail='', sep=' ', percision=1, fullunit=False):
 
     try:
         t = int(t)
-        units = ['second', 'minute', 'hour', 'day', 'month', 'year'] if fullunit else ['s', 'm', 'h', 'D', 'M', 'Y']
-        thresholds = [1, 60, 3600, 86400, 2592000, 31536000]
-
         if t >= 0:
+            units = ['second', 'minute', 'hour', 'day', 'month', 'year'] if fullunit else ['s', 'm', 'h', 'D', 'M', 'Y']
+            thresholds = [1, 60, 3600, 86400, 2592000, 31536000]
+
             for i in range(len(units)):
                 threshold = thresholds[i + 1] if i < len(units) - 1 else t + 1
                 if t < threshold:
@@ -834,8 +828,8 @@ def parse_bytes(bytestr):
         matchobj = re.match(r'(?i)^(\d+(?:\.\d+)?)([kMGTPEZY]\S*)?$', bytestr)
         if matchobj is None:
             return 0
-        number = float(matchobj.group(1))
-        unit = matchobj.group(2).lower()[0:1] if matchobj.group(2) else ''
+        number = float(matchobj[1])
+        unit = matchobj[2].lower()[:1] if matchobj[2] else ''
         multiplier = 1024.0 ** 'bkmgtpezy'.index(unit)
         return int(round(number * multiplier))
     except:
@@ -888,10 +882,7 @@ def is_pkg_exist(pkg_name):
     False
     """
     pkg_name = pkg_name.strip()
-    if importlib.util.find_spec(pkg_name) is not None:
-        return True
-    else:
-        return False
+    return importlib.util.find_spec(pkg_name) is not None
 
 
 def auto_rename(file_name, forbidden_names):
@@ -943,11 +934,11 @@ def calc_md5(fp=None, buffer=None):
         chunk_size = 1024 * 1024  # 1 Megabyte at a time
 
         while True:
-            chunk = buffer.read(chunk_size)
-            if not chunk:
-                break
-            md5_hash.update(chunk)
+            if chunk := buffer.read(chunk_size):
+                md5_hash.update(chunk)
 
+            else:
+                break
         if fp:
             buffer.close()
 
@@ -981,11 +972,11 @@ def calc_sha256(fp=None, buffer=None):
         chunk_size = 1024 * 1024  # 1 Megabyte at a time
 
         while True:
-            chunk = buffer.read(chunk_size)
-            if not chunk:
-                break
-            sha256_hash.update(chunk)
+            if chunk := buffer.read(chunk_size):
+                sha256_hash.update(chunk)
 
+            else:
+                break
         if fp:
             buffer.close()
 
@@ -1062,11 +1053,7 @@ def get_range_list(file_size, minsize):
 
     range_list = []
 
-    sizes = []
-    # make first segments smaller to finish quickly and be ready for watch while 
-    # downloading other segments
-    for i in (5, 10, 15, 20):  # 5%, 10%, etc..
-        sizes.append(i * file_size // 100)
+    sizes = [i * file_size // 100 for i in (5, 10, 15, 20)]
     remaining = file_size - sum(sizes)  # almost 50% remaining
     sizes.append(remaining)
 
@@ -1160,12 +1147,7 @@ def parse_urls(text):
 
 def get_pkg_path(pkg_name):
     """get package installation path without importing"""
-    spec = find_spec(pkg_name)
-    if spec:
-        pkg_path = os.path.dirname(spec.origin)
-    else:
-        pkg_path = None
-    return pkg_path
+    return os.path.dirname(spec.origin) if (spec := find_spec(pkg_name)) else None
 
 
 def get_pkg_version(pkg):
@@ -1222,8 +1204,9 @@ def get_pkg_version(pkg):
             pkg_name = os.path.basename(pkg_path)
 
             for folder_name in os.listdir(parent_folder):
-                match = re.match(pkg_name + r'-(.*?)\.dist-info', folder_name, re.IGNORECASE)
-                if match:
+                if match := re.match(
+                    pkg_name + r'-(.*?)\.dist-info', folder_name, re.IGNORECASE
+                ):
                     version = match.groups()[0]
                     break
         except:
@@ -1321,11 +1304,10 @@ def read_in_chunks(fn, bytes_range=None, chunk_size=10_485_760, flag='rb'):
                     break
                 elif pos + chunk_size > bytes_range[1]:
                     chunk_size = bytes_range[1] - pos + 1
-            data = fh.read(chunk_size)
-
-            if not data:
+            if data := fh.read(chunk_size):
+                yield data
+            else:
                 break
-            yield data
 
 
 __all__ = [

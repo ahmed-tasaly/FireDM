@@ -7,6 +7,7 @@
     :license: GNU LGPLv3, see LICENSE for more details.
 """
 
+
 from queue import Queue
 import os
 import sys
@@ -212,7 +213,7 @@ autoscroll_download_tab = False
 ditem_show_top = True
 
 # systray, it will be disabled by default since it doesn't work properly on most operating systems except Windows.
-enable_systray = True if operating_system == 'Windows' else False
+enable_systray = operating_system == 'Windows'
 minimize_to_systray = False
 
 DEFAULT_WINDOW_SIZE = (925, 500)  # width, height in pixels
@@ -237,7 +238,6 @@ error_q = Queue()  # used by workers to report server refuse connection errors
 jobs_q = Queue()  # # required for failed worker jobs
 
 
-# status class as an Enum
 class Status:
     """used to identify status, work as an Enum"""
     downloading = 'Downloading'
@@ -263,7 +263,6 @@ for status in [x for x in Status.all_states if x not in Status.active_states]:
     view_filter_map[status] = (status,)
 
 
-# media type class
 class MediaType:
     general = 'general'
     video = 'video'
@@ -330,9 +329,9 @@ popups = {
         },
 }
 
-for k in popups.keys():
+for k in popups:
     var_name = f'popup_{k}'
-    globals()[var_name] = True if k in (2, 4, 6, 7) else False
+    globals()[var_name] = k in (2, 4, 6, 7)
     settings_keys.append(var_name)
 
 

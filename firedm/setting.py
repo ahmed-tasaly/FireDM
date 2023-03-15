@@ -21,20 +21,18 @@ def get_global_sett_folder():
     """return a proper global setting folder"""
     home_folder = os.path.expanduser('~')
 
-    if config.operating_system == 'Windows':
-        roaming = os.getenv('APPDATA')  # return APPDATA\Roaming\ under windows
-        _sett_folder = os.path.join(roaming, f'.{config.APP_NAME}')
+    if config.operating_system == 'Darwin':
+        return f'{home_folder}/Library/Application Support/{config.APP_NAME}/'
 
     elif config.operating_system == 'Linux':
-        _sett_folder = f'{home_folder}/.config/{config.APP_NAME}/'
+        return f'{home_folder}/.config/{config.APP_NAME}/'
 
-    elif config.operating_system == 'Darwin':
-        _sett_folder = f'{home_folder}/Library/Application Support/{config.APP_NAME}/'
+    elif config.operating_system == 'Windows':
+        roaming = os.getenv('APPDATA')  # return APPDATA\Roaming\ under windows
+        return os.path.join(roaming, f'.{config.APP_NAME}')
 
     else:
-        _sett_folder = config.current_directory
-
-    return _sett_folder
+        return config.current_directory
 
 
 config.global_sett_folder = get_global_sett_folder()
@@ -57,7 +55,7 @@ def locate_setting_folder():
             os.unlink(os.path.join(folder, 'test'))
             setting_folder = config.current_directory
 
-        except (PermissionError, OSError):
+        except OSError:
             log("No enough permission to store setting at local folder:", folder)
             log('Global setting folder will be selected:', config.global_sett_folder)
 
@@ -91,8 +89,7 @@ def load_d_map():
 
         # converting data to a map of uid: ObservableDownloadItem() objects
         for uid, d_dict in data.items():  # {'uid': d_dict, 'uid2': d_dict2, ...}
-            d = update_object(model.ObservableDownloadItem(), d_dict)
-            if d:  # if update_object() returned an updated object not None
+            if d := update_object(model.ObservableDownloadItem(), d_dict):
                 d.uid = uid
                 d_map[uid] = d
 

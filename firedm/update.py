@@ -51,9 +51,7 @@ def check_for_new_version():
         if config.FROZEN:
             # use github API to get latest version
             url = 'https://api.github.com/repos/firedm/firedm/releases/latest'
-            contents = download(url, verbose=False)
-
-            if contents:
+            if contents := download(url, verbose=False):
                 j = json.loads(contents)
                 latest_version = j.get('tag_name', '0')
 
@@ -118,18 +116,22 @@ def get_pkg_latest_version(pkg, fetch_url=True):
         # rss feed
         if not fetch_url:
             match = re.findall(r'<title>(\d+.\d+.\d+.*)</title>', contents)
-            latest_version = max([parse_version(release) for release in match]) if match else None
+            latest_version = (
+                max(parse_version(release) for release in match)
+                if match
+                else None
+            )
 
             if latest_version:
                 latest_version = str(latest_version)
-        # json
         else:
             j = json.loads(contents)
 
-            releases = j.get('releases', {})
-            if releases:
-
-                latest_version = max([parse_version(release) for release in releases.keys()]) or None
+            if releases := j.get('releases', {}):
+                latest_version = (
+                    max(parse_version(release) for release in releases.keys())
+                    or None
+                )
                 if latest_version:
                     latest_version = str(latest_version)
 
@@ -154,15 +156,15 @@ def get_target_folder(pkg):
     current_directory = config.current_directory
     if config.FROZEN:  # windows cx_freeze
         # current directory is the directory of exe file
-        target_folder = os.path.join(config.current_directory, 'lib')
+        return os.path.join(config.current_directory, 'lib')
     elif config.isappimage:
         # keep every package in isolated folder, to add individual package path to sys.path if it has newer version
         # than same pkg in AppImage's site-packages folder
-        target_folder = os.path.join(config.sett_folder, config.appimage_update_folder, f'updated-{pkg}')
+        return os.path.join(
+            config.sett_folder, config.appimage_update_folder, f'updated-{pkg}'
+        )
     else:
-        target_folder = None
-
-    return target_folder
+        return None
 
 
 def update_pkg(pkg, url):
@@ -269,7 +271,7 @@ def update_pkg(pkg, url):
         log(f'{pkg} ..... done updating')
         return True
     except Exception as e:
-        log(f'update_pkg()> error', e)
+        log('update_pkg()> error', e)
 
 
 def rollback_pkg_update(pkg):
