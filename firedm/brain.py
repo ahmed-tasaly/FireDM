@@ -113,7 +113,7 @@ def file_manager(d, q, keep_segments=True):
         os.mkdir(d.temp_folder)
 
     # create temp files, needed for future opening in 'rb+' mode otherwise it will raise file not found error
-    temp_files = set([seg.tempfile for seg in d.segments])
+    temp_files = {seg.tempfile for seg in d.segments}
     for file in temp_files:
         open(file, 'ab').close()
 
@@ -136,14 +136,12 @@ def file_manager(d, q, keep_segments=True):
 
         for seg in job_list:
 
-            # for segments which have no range, it must be appended to temp file in order, or final file will be
-            # corrupted, therefore if the first non completed segment is not "downloaded", will exit loop
             if not seg.downloaded:
-                if not seg.range:
-                    break
-                else:
+                if seg.range:
                     continue
 
+                else:
+                    break
             # append downloaded segment to temp file, mark as completed
             try:
                 seg.merge_errors = getattr(seg, 'merge_errors', 0)
@@ -235,28 +233,23 @@ def file_manager(d, q, keep_segments=True):
             if d.type == 'audio':
                 log('handling audio streams')
                 d.status = Status.processing
-                success = convert_audio(d)
-                if not success:
+                if success := convert_audio(d):
+                    d.delete_tempfiles()
+
+                else:
                     d.status = Status.error
                     log('file_manager()>  convert_audio() failed, file:', d.target_file, showpopup=True)
                     break
-                else:
-                    d.delete_tempfiles()
-
+            elif os.path.isfile(d.target_file):
+                # delete temp files
+                d.delete_tempfiles()
             else:
-                # final / target file might be created by ffmpeg in case of dash video for example
-                if os.path.isfile(d.target_file):
+                # report video progress before renaming temp video file
+                d.update_media_files_progress()
+
+                if success := rename_file(d.temp_file, d.target_file):
                     # delete temp files
                     d.delete_tempfiles()
-                else:
-                    # report video progress before renaming temp video file
-                    d.update_media_files_progress()
-                    
-                    # rename temp file
-                    success = rename_file(d.temp_file, d.target_file)
-                    if success:
-                        # delete temp files
-                        d.delete_tempfiles()
 
             # download subtitles
             if d.selected_subtitles:
@@ -286,7 +279,7 @@ def file_manager(d, q, keep_segments=True):
             if d.metadata_file_content and config.write_metadata:
                 log('file manager()> writing metadata info to:', d.name, log_level=2)
                 # create metadata file
-                metadata_filename = d.target_file + '.meta'
+                metadata_filename = f'{d.target_file}.meta'
 
                 try:
                     with open(metadata_filename, 'w', encoding="utf-8") as f:
@@ -336,18 +329,15 @@ def thread_manager(d, q):
 
     # create worker/connection list
     all_workers = [Worker(tag=i, d=d) for i in range(config.max_connections)]
-    free_workers = set([w for w in all_workers])
-    threads_to_workers = dict()
+    free_workers = set(list(all_workers))
+    threads_to_workers = {}
 
     num_live_threads = 0
 
     def sort_segs(segs):
         # sort segments based on their range in reverse to use .pop()
         def sort_key(seg):
-            if seg.range:
-                return seg.range[0]
-            else:
-                return seg.num
+            return seg.range[0] if seg.range else seg.num
 
         def sort(_segs):
             return sorted(_segs, key=sort_key, reverse=True)
@@ -461,75 +451,78 @@ def thread_manager(d, q):
             worker_sl = (config.speed_limit // allowable_connections) if allowable_connections else 0
 
         # Threads ------------------------------------------------------------------------------------------------------
-        if d.status == Status.downloading:
-            if free_workers and num_live_threads < allowable_connections:
-                seg = None
-                if job_list:
-                    seg = job_list.pop()
+        if (
+            d.status == Status.downloading
+            and free_workers
+            and num_live_threads < allowable_connections
+        ):
+            seg = None
+            if job_list:
+                seg = job_list.pop()
 
-                # Auto file segmentation, share segments and help other workers
-                elif time.time() - segmentation_timer >= 1:
-                    segmentation_timer = time.time()
+            # Auto file segmentation, share segments and help other workers
+            elif time.time() - segmentation_timer >= 1:
+                segmentation_timer = time.time()
 
-                    # calculate minimum segment size based on speed, e.g. for 3 MB/s speed, and 2 live threads,
-                    # worker speed = 1.5 MB/sec, min seg size will be 1.5 x 6 = 9 MB
-                    worker_speed = d.speed // num_live_threads if num_live_threads else 0
-                    min_seg_size = max(config.SEGMENT_SIZE, worker_speed * 6)
+                # calculate minimum segment size based on speed, e.g. for 3 MB/s speed, and 2 live threads,
+                # worker speed = 1.5 MB/sec, min seg size will be 1.5 x 6 = 9 MB
+                worker_speed = d.speed // num_live_threads if num_live_threads else 0
+                min_seg_size = max(config.SEGMENT_SIZE, worker_speed * 6)
 
-                    filtered_segs = [seg for seg in d.segments if seg.range is not None
-                                      and seg.remaining > min_seg_size * 2]
+                filtered_segs = [seg for seg in d.segments if seg.range is not None
+                                  and seg.remaining > min_seg_size * 2]
 
-                    # sort segments based on its ranges smaller ranges at the end
-                    filtered_segs = sort_segs(filtered_segs)
+                # sort segments based on its ranges smaller ranges at the end
+                filtered_segs = sort_segs(filtered_segs)
 
-                    if filtered_segs:
-                        current_seg = filtered_segs.pop()
+                if filtered_segs:
+                    current_seg = filtered_segs.pop()
 
-                        # range boundaries
-                        start = current_seg.range[0]
-                        middle = start + current_seg.current_size + current_seg.remaining // 2
-                        end = current_seg.range[1]
+                    # range boundaries
+                    start = current_seg.range[0]
+                    middle = start + current_seg.current_size + current_seg.remaining // 2
+                    end = current_seg.range[1]
 
-                        # assign new range for current segment
-                        current_seg.range = [start, middle]
+                    # assign new range for current segment
+                    current_seg.range = [start, middle]
 
-                        # create new segment
-                        seg = Segment(name=os.path.join(d.temp_folder, f'{len(d.segments)}'), url=current_seg.url,
-                                      tempfile=current_seg.tempfile, range=[middle + 1, end],
-                                      media_type=current_seg.media_type)
+                    # create new segment
+                    seg = Segment(name=os.path.join(d.temp_folder, f'{len(d.segments)}'), url=current_seg.url,
+                                  tempfile=current_seg.tempfile, range=[middle + 1, end],
+                                  media_type=current_seg.media_type)
 
-                        # add to segments
-                        d.segments.append(seg)
-                        log('-' * 10, f'new segment: {seg.basename} {seg.range}, updated seg {current_seg.basename} '
-                                      f'{current_seg.range}, minimum seg size:{format_bytes(min_seg_size)}', log_level=3)
+                    # add to segments
+                    d.segments.append(seg)
+                    log('-' * 10, f'new segment: {seg.basename} {seg.range}, updated seg {current_seg.basename} '
+                                  f'{current_seg.range}, minimum seg size:{format_bytes(min_seg_size)}', log_level=3)
 
-                if seg and not seg.downloaded and not seg.locked:
-                    worker = free_workers.pop()
-                    # sometimes download chokes when remaining only one worker, will set higher minimum speed and
-                    # less timeout for last workers batch
-                    if len(job_list) + config.jobs_q.qsize() <= allowable_connections:
-                        # worker will abort if speed less than 20 KB for 10 seconds
-                        minimum_speed, timeout = 20 * 1024, 10
+            if seg and not seg.downloaded and not seg.locked:
+                worker = free_workers.pop()
+                # sometimes download chokes when remaining only one worker, will set higher minimum speed and
+                # less timeout for last workers batch
+                if len(job_list) + config.jobs_q.qsize() <= allowable_connections:
+                    # worker will abort if speed less than 20 KB for 10 seconds
+                    minimum_speed, timeout = 20 * 1024, 10
+                else:
+                    minimum_speed = timeout = None  # default as in utils.set_curl_option
+
+                ready = worker.reuse(seg=seg, speed_limit=worker_sl, minimum_speed=minimum_speed, timeout=timeout)
+                if ready:
+                    # check max download retries
+                    if seg.retries >= config.max_seg_retries:
+                        log('seg:', seg.basename, f'exceeded max. of ({config.max_seg_retries}) download retries,',
+                            'try to decrease num of connections in settings and try again')
+                        d.status = Status.error
                     else:
-                        minimum_speed = timeout = None  # default as in utils.set_curl_option
+                        seg.retries += 1
 
-                    ready = worker.reuse(seg=seg, speed_limit=worker_sl, minimum_speed=minimum_speed, timeout=timeout)
-                    if ready:
-                        # check max download retries
-                        if seg.retries >= config.max_seg_retries:
-                            log('seg:', seg.basename, f'exceeded max. of ({config.max_seg_retries}) download retries,',
-                                'try to decrease num of connections in settings and try again')
-                            d.status = Status.error
-                        else:
-                            seg.retries += 1
+                        thread = Thread(target=worker.run, daemon=True)
+                        thread.start()
+                        threads_to_workers[thread] = worker
 
-                            thread = Thread(target=worker.run, daemon=True)
-                            thread.start()
-                            threads_to_workers[thread] = worker
-
-                            # save progress info for future resuming
-                            if os.path.isdir(d.temp_folder):
-                                d.save_progress_info()
+                        # save progress info for future resuming
+                        if os.path.isdir(d.temp_folder):
+                            d.save_progress_info()
 
         # check thread completion
         for thread in list(threads_to_workers.keys()):
@@ -548,10 +541,9 @@ def thread_manager(d, q):
             job_list = [seg for seg in d.segments if not seg.downloaded]
             if not job_list:
                 break
-            else:
-                # remove an orphan locks
-                for seg in job_list:
-                    seg.locked = False
+            # remove an orphan locks
+            for seg in job_list:
+                seg.locked = False
 
         # monitor status change or get quit signal from brain ----------------------------------------------------------
         try:

@@ -185,8 +185,7 @@ class Worker:
 
         self.c.setopt(pycurl.URL, self.seg.url)
 
-        range_ = self.resume_range or self.seg.range
-        if range_:
+        if range_ := self.resume_range or self.seg.range:
             self.c.setopt(pycurl.RANGE, f'{range_[0]}-{range_[1]}')  # download segment only not the whole file
 
         self.c.setopt(pycurl.NOPROGRESS, 0)  # will use a progress function
@@ -227,10 +226,16 @@ class Worker:
                 self.seg.size = int(self.headers.get('content-length', 0))
 
                 seg = self.seg
-                if seg.size and len(self.d.segments) == 1:
-                    if all([x not in self.d.subtype_list for x in ('hls', 'fragmented')]) and not seg.range:
-                        seg.range = [0, seg.size - 1]
-                # print('self.seg.size = ', self.seg.size)
+                if (
+                    seg.size
+                    and len(self.d.segments) == 1
+                    and all(
+                        x not in self.d.subtype_list for x in ('hls', 'fragmented')
+                    )
+                    and not seg.range
+                ):
+                    seg.range = [0, seg.size - 1]
+                        # print('self.seg.size = ', self.seg.size)
             except:
                 pass
 
@@ -296,7 +301,7 @@ class Worker:
         except Exception as e:
             # this error generated when user cancel download, or write function abort
             if '23' in repr(e) or '42' in repr(e):  # ('Failed writing body', 'Callback aborted')
-                error = f'terminated'
+                error = 'terminated'
                 log('Seg', self.seg.basename, error, 'worker', self.tag, log_level=3)
             else:
                 error = repr(e)
@@ -314,9 +319,7 @@ class Worker:
             if self.file:
                 self.file.close()
 
-            # check if download completed
-            completed = self.verify()
-            if completed:
+            if completed := self.verify():
                 self.report_completed()
             else:
                 # if segment not fully downloaded send it back to thread manager to try again

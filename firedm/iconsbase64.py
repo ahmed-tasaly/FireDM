@@ -83,7 +83,7 @@ later_icon = b'iVBORw0KGgoAAAANSUhEUgAAAF8AAAAkCAYAAADvqeb3AAAABHNCSVQICAgIfAhki
 
 
 if __name__ == '__main__':
-	icons = [x for x in globals().keys() if x.lower().endswith('icon')]
+	icons = [x for x in globals() if x.lower().endswith('icon')]
 	import awesometkinter as atk
 	import tkinter as tk
 	root = tk.Tk()

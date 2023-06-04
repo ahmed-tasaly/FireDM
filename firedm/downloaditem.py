@@ -81,10 +81,7 @@ class Segment:
 
     @property
     def basename(self):
-        if self.name:
-            return os.path.basename(self.name)
-        else:
-            return 'undefined'
+        return os.path.basename(self.name) if self.name else 'undefined'
 
     def get_size(self):
         http_headers = self.d.http_headers if self.d else None
@@ -355,13 +352,8 @@ class DownloadItem:
         elif self.total_size:
             p = round(self.downloaded * 100 / self.total_size, 1)
 
-        # make progress 99% if not completed
         if p >= 100:
-            if not self.status == config.Status.completed:
-                p = 99
-            else:
-                p = 100
-
+            p = 99 if self.status != config.Status.completed else 100
         return p
 
     @property
@@ -451,8 +443,7 @@ class DownloadItem:
         subs = {}
         # search for subs
         for k in subs_names:
-            v = self.subtitles.get(k) or self.automatic_captions.get(k)
-            if v:
+            if v := self.subtitles.get(k) or self.automatic_captions.get(k):
                 subs[k] = v
 
         self.selected_subtitles = subs
@@ -637,18 +628,34 @@ class DownloadItem:
             if self.audio_fragments:
                 # example 'fragments': [{'path': 'range/0-640'}, {'path': 'range/2197-63702', 'duration': 9.985},]
                 audio_segments = [
-                    Segment(name=os.path.join(self.temp_folder, str(i) + '_audio'), num=i, range=None, size=0,
-                            url=urljoin(self.audio_fragment_base_url, x.get('path', '')), tempfile=self.audio_file,
-                            media_type=MediaType.audio)
-                    for i, x in enumerate(self.audio_fragments)]
+                    Segment(
+                        name=os.path.join(self.temp_folder, f'{str(i)}_audio'),
+                        num=i,
+                        range=None,
+                        size=0,
+                        url=urljoin(
+                            self.audio_fragment_base_url, x.get('path', '')
+                        ),
+                        tempfile=self.audio_file,
+                        media_type=MediaType.audio,
+                    )
+                    for i, x in enumerate(self.audio_fragments)
+                ]
 
             else:
                 range_list = get_range_list(self.audio_size, config.SEGMENT_SIZE)
 
                 audio_segments = [
-                    Segment(name=os.path.join(self.temp_folder, str(i) + '_audio'), num=i, range=x,
-                            url=self.audio_url, tempfile=self.audio_file, media_type=MediaType.audio)
-                    for i, x in enumerate(range_list)]
+                    Segment(
+                        name=os.path.join(self.temp_folder, f'{str(i)}_audio'),
+                        num=i,
+                        range=x,
+                        url=self.audio_url,
+                        tempfile=self.audio_file,
+                        media_type=MediaType.audio,
+                    )
+                    for i, x in enumerate(range_list)
+                ]
 
             # append to main list
             _segments += audio_segments
@@ -725,7 +732,7 @@ class DownloadItem:
             # for dynamic made segments will build new segments from progress info
             if self.size and self.resumable and not self.fragments and 'hls' not in self.subtype_list:
                 self.segments.clear()
-                for i, item in enumerate(progress_info):
+                for item in progress_info:
                     try:
                         seg = Segment()
                         seg.__dict__.update(item)
@@ -743,7 +750,6 @@ class DownloadItem:
                         pass
                 log('load_progress_info()> rebuild segments from previous download for:', self.name)
 
-            # for fixed segments will update segments list only
             elif self.segments:
                 for seg, item in zip(self.segments, progress_info):
                     if seg.name == item.get('name'):
@@ -806,14 +812,13 @@ class DownloadItem:
 
             try:
                 # handle hls or fragmented videos
-                if any([x in self.subtype_list for x in ('hls', 'fragmented')]):
+                if any(x in self.subtype_list for x in ('hls', 'fragmented')):
                     # one hls file might contain more than 5000 segment with unknown sizes
                     # will use segments numbers as a starting point and segment size = 1
 
                     total_size = len(self.segments)
                     sp = [(self.segments.index(seg), 1) for seg in self.segments if seg.downloaded and c(seg)]
 
-                # handle other video types
                 elif self.type == MediaType.video:
 
                     vid = [(seg.range[0], seg.down_bytes) for seg in self.video_segments if c(seg)]
@@ -821,7 +826,6 @@ class DownloadItem:
 
                     sp = vid + aud
 
-                # handle non video items
                 else:
                     sp = [(seg.range[0], seg.down_bytes) for seg in self.segments if c(seg)]
 

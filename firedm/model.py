@@ -137,14 +137,14 @@ class ObservableVideo(Video, Observable):
         all_subtitles = {}
         for k, v in self.subtitles.items():
             if k in all_subtitles:
-                k = k + '_2'
-            k = k + '_sub'
+                k = f'{k}_2'
+            k = f'{k}_sub'
             all_subtitles[k] = v
 
         for k, v in self.automatic_captions.items():
             if k in all_subtitles:
-                k = k + '_2'
-            k = k + '_caption'
+                k = f'{k}_2'
+            k = f'{k}_caption'
             all_subtitles[k] = v
 
         # sort subtitles

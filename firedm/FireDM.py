@@ -93,9 +93,12 @@ def pars_args(arguments):
         action='help',
         help='show this help message and exit')
     general.add_argument(
-        '-v', '--version',
-        action='version', version='FireDM version: ' + __version__,
-        help='Print program version and exit')
+        '-v',
+        '--version',
+        action='version',
+        version=f'FireDM version: {__version__}',
+        help='Print program version and exit',
+    )
     general.add_argument(
         '--show-settings',
         action='store_true', default=argparse.SUPPRESS,
@@ -139,12 +142,13 @@ def pars_args(arguments):
     # ----------------------------------------------------------------------------------------Filesystem options--------
     filesystem = parser.add_argument_group(title='Filesystem options')
     filesystem.add_argument(
-        '-o', '--output',
-        type=str, metavar='<PATH>', default=argparse.SUPPRESS,
-        help='output file path, filename, or download folder: if input value is a file name without path, file will '
-             f'be saved in current folder, if input value is a folder path only, '
-             'remote file name will be used, '
-             'be careful with video extension in filename, since ffmpeg will convert video based on extension')
+        '-o',
+        '--output',
+        type=str,
+        metavar='<PATH>',
+        default=argparse.SUPPRESS,
+        help='output file path, filename, or download folder: if input value is a file name without path, file will be saved in current folder, if input value is a folder path only, remote file name will be used, be careful with video extension in filename, since ffmpeg will convert video based on extension',
+    )
     filesystem.add_argument(
         '-b', '--batch-file', default=argparse.SUPPRESS,
         type=argparse.FileType('r', encoding='UTF-8'), metavar='<PATH>',
@@ -328,7 +332,7 @@ def main(argv=sys.argv):
         for x in ('stdout', 'stderr', 'stdin'):
             setattr(sys, x, Dummy())
 
-    guimode = True if len(argv) == 1 or '--gui' in argv else False
+    guimode = len(argv) == 1 or '--gui' in argv
     cmdmode = not guimode
 
     # read config file

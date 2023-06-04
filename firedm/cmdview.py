@@ -210,7 +210,10 @@ class CmdView(IView):
         options_lines = [f'  {k}: {str(v)}' for k, v in options_map.items()]
 
         # get the width of longest line in msg body or options
-        max_line_width = max(max([len(line) for line in msg_lines]), max([len(line) for line in options_lines]))
+        max_line_width = max(
+            max(len(line) for line in msg_lines),
+            max(len(line) for line in options_lines),
+        )
 
         # get current terminal window size (width)
         terminal_width = get_terminal_size()[0]
@@ -234,7 +237,7 @@ class CmdView(IView):
             delta = allowable_line_width - len(line) if allowable_line_width > len(line) else 0
 
             # add stars
-            line = '* ' + line + ' ' * delta + ' *'
+            line = f'* {line}' + ' ' * delta + ' *'
 
             output_lines[i] = line
 
